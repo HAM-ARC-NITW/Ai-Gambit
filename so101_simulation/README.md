@@ -1,128 +1,111 @@
-# Ai-Gambit: SO-101 Robotic Arm Simulation & Motion Planning
+# SO-101 chess simulation
 
-Production-grade MuJoCo physics simulation and autonomous pick-and-place motion planning system for the **Ai-Gambit** robotic chess playing arm.
+This folder contains the MuJoCo chess scene, movement code, RGB perception adapter,
+playable game and visual experiments. The [main project README](../README.md)
+explains the complete architecture, what has been implemented, all 56 perception
+scenarios, validation results, limitations and pending work.
 
----
+**The chess opponent is a temporary placeholder.** python-chess supplies the
+rules, and `chess_game.py` contains a small negamax/alpha-beta move search. The
+team's custom engine has not been connected.
 
-## 📌 Architecture Overview
+**Full ROS 2 integration is pending.** These Windows runners call Python/MuJoCo
+directly. Prepared ROS perception interfaces exist under `../perception_ws/src`,
+but ROS runtime validation, movement actions/nodes, MoveIt 2 and ros2_control
+integration remain to be done.
 
-```
-Ai-Gambit/so101_simulation/
-├── chess_world.xml         # Full MuJoCo physics world (Robot + 8x8 Board + 32 Pieces + Cameras)
-├── chess_coords.py         # Algebraic chess coordinate mapping (a1..h8 <-> 3D Cartesian coords)
-├── ik_solver.py            # Damped Levenberg-Marquardt Inverse Kinematics (IK) solver
-├── motion_planner.py       # S-Curve cosine velocity trajectory generator & transit executor
-├── chess_robot.py          # High-level Master Controller (play_move, capture handling, parking)
-├── run_simulation.py       # Interactive 3D visual simulation runner (GUI viewer + CLI)
-├── test_system.py          # Comprehensive automated verification suite (100% pass)
-└── assets/                 # High-detail STL meshes for SO-101 arm & chess pieces
-```
+## Setup and entry points
 
----
+From the repository root in PowerShell, create `.venv` if needed and install:
 
-## 🚀 Quick Start
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r .\so101_simulation\requirements.txt
 
-### 1. Requirements
-Ensure you have the required packages installed:
-```bash
-pip install mujoco opencv-python numpy glfw
-```
+# Play White against the arm: 3D viewer, overhead camera and occupancy grid.
+.\so101_simulation\play_chess.cmd
 
-### 2. Run Interactive Simulation
-Launch the real-time 3D MuJoCo visualizer with the complete chessboard and robotic arm:
-```bash
-python3 run_simulation.py
-```
-- The simulation loads with all 32 pieces in their official starting squares.
-- Interactive terminal prompt allows entering moves such as `e2e4`, `d7d5`, `g1f3`, etc.
-- Press `Space` in the viewer to pause/resume, or `Esc` to quit.
+# Inspect camera experiments: Space/N advances; Escape exits.
+.\so101_simulation\run_perception.cmd
 
-### 3. Run Pre-packaged Demonstration
-To watch a sequence of moves (including captures and graveyard transfers):
-```bash
-python3 run_simulation.py --demo
+# Run the original motion-only demonstration.
+.\.venv\Scripts\python.exe .\so101_simulation\run_simulation.py
+
+# Generate the full visual report.
+.\.venv\Scripts\python.exe .\so101_simulation\run_perception.py --headless
+Start-Process .\so101_simulation\perception_results\index.html
 ```
 
-### 4. Run Automated Test Suite
-To verify physics stability, 64-square IK reachability, move accuracy, and capture handling:
-```bash
-python3 test_system.py
+In playing mode, click source and destination in the occupancy window and press
+Enter, or type a UCI move. Append `q`, `r`, `b` or `n` for promotion. The virtual
+human action is placed instantly; robot replies are animated by default. Camera
+verification of the board and inventories must succeed before a turn is committed.
+
+`run_simulation.py` accepts `--moves`, `--speed`, `--no-viewer`, `--fps 30|60` and
+`--low-graphics`. It does not offer interactive move input or a `--demo` option,
+and it does not run the camera-perception game loop. `play_chess.py --demo` is the
+visual game replay mode.
+
+Physics uses a 2 ms timestep (500 Hz). Viewer synchronization is batched at an
+approximately 60 Hz target and accounts for computation time when pacing motion.
+Use `--fps 30 --low-graphics` with the motion runner for lighter viewer settings.
+Those flags do not change physics or offscreen camera rendering and are not
+accepted by the other runners.
+
+## How the pieces fit together
+
+| File | Responsibility |
+| --- | --- |
+| `chess_world.xml` | Base robot, board, pieces, actuators and cameras |
+| `chess_coords.py` | Squares, grasp/rest heights, HOME/PARK poses and storage coordinates |
+| `ik_solver.py` | Damped position IK and a downward gripper preference |
+| `motion_planner.py` | Cosine joint interpolation, simulation stepping and viewer pacing |
+| `chess_robot.py` | Approach, grasp/transfer, placement, capture and collision-mask handling |
+| `perception_sim.py` | Generate camera fixtures, render RGB, arrange virtual actions and execute special-move transfers |
+| `chess_game.py` | Rules adapter, legal occupancy matching, versioned coordinator and temporary search |
+| `play_chess.py` | Human input, opponent turns and final camera verification |
+| `run_perception.py` | Controlled rendered cases, scoring and HTML/JSON evidence |
+| `test_perception.py` | Observation, rules, inventory, geometry and commit contracts |
+| `test_system.py` | Original stability, IK and scripted-move checks |
+| `publish_camera.py` | Prepared optional ROS Image/CameraInfo source |
+
+The shared RGB-only detector lives in
+[`perception.py`](../perception_ws/src/ai_gambit_perception/ai_gambit_perception/perception.py).
+Its [workspace configuration](../perception_ws/src/ai_gambit_perception/ai_gambit_perception/workspace.json)
+defines camera calibration settings, tag locations, detection thresholds and spare
+type assignments. The [perception guide](PERCEPTION.md) explains the image stages,
+coordinates, controls, ROS messages/services and real-camera setup in more detail.
+
+The generated perception scene extends the base XML with 12 AprilTags, 32 promotion
+slots and 48 capture/retirement slots. Spare pieces use cylinder proxies. The
+perception camera renders 1280 x 960 RGB and the rectified board is 800 x 800.
+This is a different camera setup from the original motion scene.
+
+## Validation and limits
+
+The implementation's Windows validation passed all 56 expected rendered outcomes,
+34 perception contract/geometry tests, the original motion checks and GUI/scripted
+game checks. A passing obstruction case means the system blocked the uncertain
+observation. The [main README's validation section](../README.md#recorded-implementation-validation)
+explains the scope and recorded measurements.
+
+Run contracts from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -B -m pytest .\so101_simulation\test_perception.py -q
 ```
 
----
+Run the older motion checks from this folder, because they load relative XML paths:
 
-## 🦾 Core Modules & Capabilities
-
-### 1. `chess_world.xml` (Physics Simulation)
-- **Robot Arm**: 6-DOF SO-101 follower arm equipped with STS3215 bus servos, calibrated pinch site `(0.018, 0.020, -0.095)` inside the parallel jaw gripper, and tuned PD position actuators.
-- **Chessboard**: Standard tournament 8x8 board centered at `(0.25, 0.0, 0.0)` directly within the robot's primary dexterous workspace.
-- **32 Chess Pieces**: Dynamic freejoint pieces with realistic mass, friction (`friction="1.2 0.005 0.0001"`), physical collision cylinders, and high-detail 3D visual STL meshes.
-- **Physics Stability**: Configured with `implicitfast` integrator, `timestep="0.002"`, and `iterations="50"`, guaranteeing zero sagging, jitter, or explosions under gravity.
-- **Cameras**: Includes calibrated overhead `top_camera` and perspective `side_camera`.
-
-### 2. `chess_coords.py` (Coordinate System)
-- Maps standard algebraic notation (`a1` to `h8`) to 3D Cartesian coordinates.
-- Stores piece-specific grasp heights (`PIECE_GRASP_HEIGHTS`) and resting heights (`PIECE_REST_Z`).
-- Manages graveyard coordinates for captured white and black pieces outside the playing area.
-- Maintains `HOME_POSE` and camera `PARK_POSE`.
-
-### 3. `ik_solver.py` (Inverse Kinematics)
-- Damped Levenberg-Marquardt solver with nullspace projection toward a comfortable reference posture.
-- **Coverage**: **100% reachable** across all 64 squares of the chessboard.
-- **Accuracy**: Sub-millimeter precision (mean error: 0.24 mm, maximum error: 0.50 mm).
-- Joint limits strictly enforced:
-  - `shoulder_pan`: $\pm 180^\circ$
-  - `shoulder_lift`: $\pm 143^\circ$
-  - `elbow_flex`: $\pm 160^\circ$
-  - `wrist_flex`: $\pm 160^\circ$
-  - `wrist_roll`: $\pm 360^\circ$
-
-### 4. `motion_planner.py` (Trajectory Planning)
-- **S-Curve Cosine Trajectories**: Smooth acceleration and deceleration preventing jerky joint impulses.
-- **Kinematic Piece Clamping**: Target pieces are firmly clamped between gripper jaws during transit and released flush onto target squares.
-- **Multi-Waypoint Execution**: Follows piecewise continuous trajectories for clearance, approach, and placement.
-
-### 5. `chess_robot.py` (Master Orchestrator)
-- **`play_move(from_sq, to_sq)`**: Executes full chess moves with automatic piece identification.
-- **Multi-Waypoint Vertical Descent**: 5-step vertical descend and ascend waypoints ensure straight-line vertical movement ($\ge 50$ mm clearance) to avoid grazing neighboring pieces.
-- **Bystander Collision Isolation**: Masks neighboring piece collision masks during grasp and place phases, preventing accidental knock-overs on crowded boards.
-- **Automatic Captures**: Detects occupied destination squares, transports the captured piece to the graveyard, and completes the capturing move.
-- **`park()`**: Parks arm to the side to give overhead vision cameras an unobstructed view of the board.
-- **`capture_camera_image()`**: Directly captures RGB frames from `top_camera` or `side_camera`.
-
----
-
-## 📷 Vision & Perception Integration
-
-The overhead camera is calibrated to capture the board cleanly:
-- **Camera Name**: `top_camera`
-- **Position**: `pos="0.25 0.0 0.65"`, `xyaxes="1 0 0 0 1 0"`, `fovy="55"`
-- **Pixel Dimensions**: $640 \times 480$
-- **Board Extents in Image**:
-  - Center: `(320.0, 240.0)`
-  - Width $\times$ Height: $172.8 \times 172.8$ pixels
-  - Square Size: $21.6$ pixels per square
-  - Horizontal range: $X \in [233.6, 406.4]$
-  - Vertical range: $Y \in [153.6, 326.4]$
-
-To capture an unobstructed image for the perception pipeline:
-```python
-from chess_robot import ChessRobot
-
-robot = ChessRobot()
-robot.park()  # Swings arm clear of camera view
-rgb_frame = robot.capture_camera_image("top_camera")
-# rgb_frame can now be passed directly to OpenCV / piece detection pipelines
+```powershell
+..\.venv\Scripts\python.exe -B test_system.py
 ```
 
----
+Selected-case runs replace the gallery summary with that subset. Run without
+`--case` to regenerate the full 56-case report. Generated assets and results are
+ignored by Git and are recreated locally.
 
-## 🧪 Verification Results
-
-Running `python3 test_system.py`:
-- ✅ **Simulation Physics Stability**: PASSED (All 32 pieces stable under gravity)
-- ✅ **64-Square IK Reachability**: PASSED (64/64 solved, mean error 0.24 mm)
-- ✅ **Pawn Move (`e2e4`)**: PASSED (Final placement offset: 0.03 mm)
-- ✅ **Black Pawn Move (`d7d5`)**: PASSED (Final placement offset: 0.03 mm)
-- ✅ **Knight Move (`g1f3`)**: PASSED (Jump trajectory clearance: 0.03 mm offset)
-- ✅ **Capture Move (`e4xd5`)**: PASSED (Piece removed to graveyard, placement offset: 0.03 mm)
+Pieces are carried kinematically and placement is imposed in the simulation;
+these results do not prove realistic frictional grasping or full-arm collision
+avoidance. Binary occupancy cannot prove piece identity or detect every swap.
+Real-camera calibration, hardware limits, physical grasping, the custom engine
+and full ROS movement integration remain separate validation/integration work.

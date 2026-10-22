@@ -1,0 +1,6 @@
+mujoco>=3.2,<4
+numpy>=1.26
+opencv-python>=4.8
+glfw>=2.7
+python-chess>=1.999
+pytest>=8

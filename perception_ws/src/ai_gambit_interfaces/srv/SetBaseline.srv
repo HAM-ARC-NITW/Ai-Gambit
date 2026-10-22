@@ -1,0 +1,9 @@
+string operation_id
+uint64 game_version
+uint8[64] expected
+uint8[32] expected_rack
+uint8[48] expected_tray
+---
+string operation_id
+bool success
+string reason

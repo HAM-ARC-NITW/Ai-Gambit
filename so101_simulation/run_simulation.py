@@ -31,7 +31,13 @@ def main():
                         help="Simulation speed factor (default 1.0, higher = faster)")
     parser.add_argument("--no-viewer", action="store_true",
                         help="Run in headless mode without 3D GUI window")
+    parser.add_argument("--fps", type=int, choices=[30, 60], default=60,
+                        help="Viewer updates per second (physics rate stays unchanged)")
+    parser.add_argument("--low-graphics", action="store_true",
+                        help="Disable shadows and reflections for slower graphics hardware")
     args = parser.parse_args()
+    if not np.isfinite(args.speed) or args.speed <= 0:
+        parser.error("--speed must be a finite number greater than zero")
 
     print("=" * 60)
     print("  AI-GAMBIT SO-101 ROBOTIC CHESS SIMULATION")
@@ -44,6 +50,7 @@ def main():
 
     # Initialize Robot Controller
     robot = ChessRobot("chess_world.xml")
+    robot.planner.viewer_fps = args.fps
 
     if args.no_viewer:
         print("\nStarting headless execution...")
@@ -59,6 +66,11 @@ def main():
     # Interactive 3D Viewer
     try:
         with mujoco.viewer.launch_passive(robot.model, robot.data) as viewer:
+            if args.low_graphics:
+                # These are viewer-only options; camera images and physics keep
+                # their original settings.
+                viewer.user_scn.flags[mujoco.mjtRndFlag.mjRND_SHADOW] = False
+                viewer.user_scn.flags[mujoco.mjtRndFlag.mjRND_REFLECTION] = False
             print("\n[Viewer] Interactive 3D window launched!")
             print("[Viewer] Adjust camera view with Mouse (Left: Rotate, Right: Pan, Scroll: Zoom)")
 
@@ -89,16 +101,18 @@ def main():
             print("=" * 60)
 
             # Keep window open for user inspection
+            frame_steps = max(1, round(args.speed / (args.fps * robot.model.opt.timestep)))
             while viewer.is_running():
-                mujoco.mj_step(robot.model, robot.data)
-                viewer.sync()
-                time.sleep(0.01)
+                q_hold = robot.data.ctrl[:6].copy()
+                robot.planner.execute_segment(q_hold, q_hold, steps=frame_steps,
+                                              viewer=viewer, speed_factor=args.speed)
 
+    except (InterruptedError, KeyboardInterrupt):
+        print("\nSimulation stopped.")
     except Exception as e:
-        print(f"\nViewer encountered display error ({e}). Running in headless mode instead...")
-        for i, m in enumerate(args.moves):
-            print(f"\n[Move {i+1}/{len(args.moves)}] Playing {m.upper()}...")
-            robot.play_move(m, speed=args.speed)
+        # Replaying all moves here would execute them on a partly changed board.
+        print(f"\nSimulation stopped with an error: {e}")
+        raise
 
 
 if __name__ == "__main__":

@@ -29,6 +29,9 @@ class MotionPlanner:
         # Active piece tracking during transit
         self.carrying_piece_id: Optional[int] = None
         self.carry_offset = np.zeros(3)
+        # Physics still runs at 500 Hz; the display only needs 60 updates/second.
+        self.viewer_fps = 60
+        self.viewer_callback = None  # Optional camera UI update, once per display frame.
 
     def plan_pick_and_place_waypoints(self,
                                       pick_pos: np.ndarray,
@@ -115,7 +118,10 @@ class MotionPlanner:
         Execute smooth cosine S-curve trajectory between two configurations.
         """
         dt = self.model.opt.timestep
-        delay = (dt / speed_factor) if viewer else 0.0
+        if speed_factor <= 0:
+            raise ValueError("speed_factor must be greater than zero")
+        frame_steps = max(1, round(speed_factor / (self.viewer_fps * dt)))
+        start_time = time.perf_counter()
         
         for s in range(steps):
             alpha = (1.0 - np.cos(np.pi * (s + 1) / steps)) / 2.0
@@ -138,10 +144,17 @@ class MotionPlanner:
             if step_callback:
                 step_callback(self.data)
                 
-            if viewer is not None:
+            # Draw a batch of physics steps at once. Sleeping until a deadline
+            # accounts for time already spent on physics and viewer updates.
+            if viewer is not None and ((s + 1) % frame_steps == 0 or s == steps - 1):
+                if not viewer.is_running():
+                    raise InterruptedError("Simulation viewer closed")
                 viewer.sync()
-                if delay > 0:
-                    time.sleep(delay)
+                if self.viewer_callback is not None:
+                    self.viewer_callback()
+                remaining = start_time + (s + 1) * dt / speed_factor - time.perf_counter()
+                if remaining > 0:
+                    time.sleep(remaining)
 
     def attach_piece(self, piece_body_id: int):
         """
