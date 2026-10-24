@@ -8,6 +8,7 @@ Orchestrates full chess moves, piece pickups, precision placement, and captures.
 import mujoco
 import numpy as np
 import time
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from chess_coords import (
@@ -28,7 +29,12 @@ from motion_planner import MotionPlanner
 
 class ChessRobot:
     def __init__(self, model_path: str = "chess_world.xml"):
-        self.model = mujoco.MjModel.from_xml_path(model_path)
+        # Find relative scene paths beside this script, even when an editor
+        # launches Python with the repository root as its working folder.
+        scene_path = Path(model_path)
+        if not scene_path.is_absolute():
+            scene_path = Path(__file__).resolve().parent / scene_path
+        self.model = mujoco.MjModel.from_xml_path(str(scene_path))
         self.data = mujoco.MjData(self.model)
         
         # Settle simulation initially
@@ -162,13 +168,17 @@ class ChessRobot:
                 g_start = int(self.model.body(b).geomadr[0])
                 g_num = int(self.model.body(b).geomnum[0])
                 for g in range(g_start, g_start + g_num):
-                    bystanders.append(g)
+                    # Keep visual-only meshes and hidden test pieces disabled.
+                    # Otherwise changing masks here accidentally enables their contacts.
+                    if self.model.geom_contype[g] or self.model.geom_conaffinity[g]:
+                        bystanders.append(g)
 
         active_geoms = []
         g_start = int(self.model.body(piece_body_id).geomadr[0])
         g_num = int(self.model.body(piece_body_id).geomnum[0])
         for g in range(g_start, g_start + g_num):
-            active_geoms.append(g)
+            if self.model.geom_contype[g] or self.model.geom_conaffinity[g]:
+                active_geoms.append(g)
 
         gripper_geoms = []
         for bname in ['gripper_link', 'moving_jaw_so101_v1_link']:
@@ -291,10 +301,8 @@ class ChessRobot:
             self.planner.execute_segment(retract_wps[-1], q_home, steps=120, viewer=viewer, speed_factor=speed)
             
             # Settle physics
-            for _ in range(30):
-                mujoco.mj_step(self.model, self.data)
-                if viewer:
-                    viewer.sync()
+            q_hold = self.data.ctrl[:6].copy()
+            self.planner.execute_segment(q_hold, q_hold, steps=30, viewer=viewer, speed_factor=speed)
                     
         finally:
             # Restore all original collision masks

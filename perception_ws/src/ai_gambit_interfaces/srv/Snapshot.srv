@@ -1,0 +1,11 @@
+string operation_id
+uint64 game_version
+builtin_interfaces/Time after
+float32 timeout_seconds
+---
+string operation_id
+uint64 game_version
+bool success
+string reason
+ai_gambit_interfaces/BoardObservation board
+ai_gambit_interfaces/RackObservation rack

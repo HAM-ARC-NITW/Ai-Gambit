@@ -94,10 +94,12 @@ def pos_to_square(x: float, y: float) -> Optional[str]:
 def get_graveyard_pos(color: str, index: int) -> np.ndarray:
     """
     Return coordinate for captured pieces off the board.
-    White graveyard: y = -0.165
-    Black graveyard: y = +0.165
+    Three rows of eight per colour; extra rows also store retired promotion pawns.
     """
-    y = -0.165 if color.lower().startswith('w') else 0.165
+    if not 0 <= index < 24:
+        raise ValueError("Capture storage is full (24 slots per colour)")
+    sign = -1 if color.lower().startswith('w') else 1
+    y = sign * (0.165 + (index // 8) * 0.030)
     x = 0.145 + (index % 8) * 0.028
     z = BOARD_SURFACE_Z + 0.015
     return np.array([x, y, z], dtype=np.float64)
