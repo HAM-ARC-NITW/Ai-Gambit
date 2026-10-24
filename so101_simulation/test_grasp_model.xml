@@ -1,0 +1,101 @@
+<mujoco model='test_grasp'>
+  <compiler angle='radian'/>
+  <option integrator='implicitfast' timestep='0.002'/>
+  <asset>
+    <texture type='2d' name='groundplane' builtin='checker' mark='edge' rgb1='0.2 0.3 0.4' rgb2='0.1 0.2 0.3' markrgb='0.8 0.8 0.8' width='300' height='300'/>
+    <material name='groundplane' texture='groundplane' texuniform='true' texrepeat='5 5' reflectance='0.2'/>
+    <material name='3d_printed' rgba='1.0 0.82 0.12 1.0'/>
+    <material name='sts3215' rgba='0.1 0.1 0.1 1.0'/>
+    <material name='white_mat' rgba='0.95 0.93 0.88 1' reflectance='0.15'/>
+
+    <mesh name='mesh_pawn' file='assets/chess_pieces/pawn.stl' scale='0.001 0.001 0.001'/>
+    <mesh name='base_motor_holder_so101_v1' file='assets/base_motor_holder_so101_v1.stl'/>
+    <mesh name='base_so101_v2' file='assets/base_so101_v2.stl'/>
+    <mesh name='sts3215_03a_v1' file='assets/sts3215_03a_v1.stl'/>
+    <mesh name='waveshare_mounting_plate_so101_v2' file='assets/waveshare_mounting_plate_so101_v2.stl'/>
+    <mesh name='motor_holder_so101_base_v1' file='assets/motor_holder_so101_base_v1.stl'/>
+    <mesh name='rotation_pitch_so101_v1' file='assets/rotation_pitch_so101_v1.stl'/>
+    <mesh name='upper_arm_so101_v1' file='assets/upper_arm_so101_v1.stl'/>
+    <mesh name='under_arm_so101_v1' file='assets/under_arm_so101_v1.stl'/>
+    <mesh name='motor_holder_so101_wrist_v1' file='assets/motor_holder_so101_wrist_v1.stl'/>
+    <mesh name='sts3215_03a_no_horn_v1' file='assets/sts3215_03a_no_horn_v1.stl'/>
+    <mesh name='wrist_roll_pitch_so101_v2' file='assets/wrist_roll_pitch_so101_v2.stl'/>
+    <mesh name='wrist_roll_follower_so101_v1' file='assets/wrist_roll_follower_so101_v1.stl'/>
+    <mesh name='moving_jaw_so101_v1' file='assets/moving_jaw_so101_v1.stl'/>
+  </asset>
+
+  <contact>
+    <exclude body1='shoulder_link' body2='lower_arm_link'/>
+    <exclude body1='lower_arm_link' body2='moving_jaw_so101_v1_link'/>
+    <exclude body1='wrist_link' body2='moving_jaw_so101_v1_link'/>
+  </contact>
+
+  <worldbody>
+    <light pos='0 0 3.5' dir='0 0 -1' directional='true'/>
+    <geom name='floor' size='0 0 0.05' pos='0 0 0' type='plane' material='groundplane'/>
+
+    <geom pos='-0.00636 -9.9e-05 -0.0024' quat='0.5 0.5 0.5 0.5' type='mesh' mesh='base_motor_holder_so101_v1' material='3d_printed' contype='0' conaffinity='0'/>
+    <geom pos='-0.00636 -9e-09 -0.0024' quat='0.5 0.5 0.5 0.5' type='mesh' mesh='base_so101_v2' material='3d_printed' contype='0' conaffinity='0'/>
+    <geom pos='0.02633 -9e-09 0.0437' quat='1 0 0 0' type='mesh' mesh='sts3215_03a_v1' material='sts3215' contype='0' conaffinity='0'/>
+    <geom pos='-0.03098 -0.0002 0.0474' quat='0.5 0.5 0.5 0.5' type='mesh' mesh='waveshare_mounting_plate_so101_v2' material='3d_printed' contype='0' conaffinity='0'/>
+
+    <body name='shoulder_link' pos='0.038835 -9e-09 0.0624' quat='1.76e-12 1.3e-06 -1 -1.3e-06'>
+      <inertial pos='-0.03076 -1.6e-05 -0.02527' mass='0.10' diaginertia='8.37e-05 8.1e-05 2.39e-05'/>
+      <joint name='shoulder_pan' range='-3.14 3.14'/>
+      <geom pos='-0.0304 0.0004 -0.0417' quat='0.5 0.5 0.5 -0.5' type='mesh' mesh='sts3215_03a_v1' material='sts3215'/>
+      <geom pos='-0.0676 -0.00017 0.0158' quat='0.5 0.5 -0.5 0.5' type='mesh' mesh='motor_holder_so101_base_v1' material='3d_printed'/>
+      <geom pos='0.0122 2.2e-05 0.0464' quat='0.707 -0.707 0 0' type='mesh' mesh='rotation_pitch_so101_v1' material='3d_printed' contype='0' conaffinity='0'/>
+
+      <body name='upper_arm_link' pos='-0.0304 -0.0183 -0.0542' quat='0.5 -0.5 -0.5 -0.5'>
+        <inertial pos='-0.0898 -0.0084 0.0184' mass='0.103' diaginertia='1.5e-04 1.4e-04 3.7e-05'/>
+        <joint name='shoulder_lift' range='-2.5 2.5'/>
+        <geom pos='-0.1126 -0.0155 0.0187' quat='9.4e-07 -0.707 0.707 -9.4e-07' type='mesh' mesh='sts3215_03a_v1' material='sts3215'/>
+        <geom pos='-0.0651 0.012 0.0182' quat='1.3e-06 1 0 0' type='mesh' mesh='upper_arm_so101_v1' material='3d_printed'/>
+
+        <body name='lower_arm_link' pos='-0.1126 -0.028 0' quat='0.707 0 0 0.707'>
+          <inertial pos='-0.098 0.0032 0.0183' mass='0.104' diaginertia='1.6e-04 1.45e-04 2.8e-05'/>
+          <joint name='elbow_flex' range='-2.8 2.8'/>
+          <geom pos='-0.0648 -0.032 0.0182' quat='1.3e-06 1 0 0' type='mesh' mesh='under_arm_so101_v1' material='3d_printed'/>
+          <geom pos='-0.0648 -0.032 0.018' quat='1.3e-06 -1 0 0' type='mesh' mesh='motor_holder_so101_wrist_v1' material='3d_printed'/>
+          <geom pos='-0.1224 0.0052 0.0187' quat='1.76e-12 -1.3e-06 1 -1.3e-06' type='mesh' mesh='sts3215_03a_v1' material='sts3215'/>
+
+          <body name='wrist_link' pos='-0.1349 0.0052 0' quat='0.707 0 0 -0.707'>
+            <inertial pos='-0.0001 -0.0386 0.0281' mass='0.079' diaginertia='3.68e-05 2.74e-05 1.89e-05'/>
+            <joint name='wrist_flex' range='-2.8 2.8'/>
+            <geom pos='0 -0.0424 0.0306' quat='0.5 0.5 0.5 -0.5' type='mesh' mesh='sts3215_03a_no_horn_v1' material='sts3215' contype='0' conaffinity='0'/>
+            <geom pos='0 -0.028 0.0181' quat='0.5 -0.5 -0.5 -0.5' type='mesh' mesh='wrist_roll_pitch_so101_v2' material='3d_printed' contype='0' conaffinity='0'/>
+
+            <body name='gripper_link' pos='0 -0.0611 0.0181' quat='0.0172 -0.0172 0.707 0.707'>
+              <inertial pos='0.0002 0.0002 -0.0252' mass='0.087' diaginertia='4.3e-05 3.7e-05 2.4e-05'/>
+              <joint name='wrist_roll' range='-6.28 6.28'/>
+              <geom pos='0.0077 0.0001 -0.0234' quat='0.707 -0.707 0 0' type='mesh' mesh='sts3215_03a_v1' material='sts3215'/>
+              <geom name='fixed_jaw' pos='0 -0.000218 0.00095' quat='1.3e-06 -1 0 0' type='mesh' mesh='wrist_roll_follower_so101_v1' material='3d_printed' friction='1.8 0.01 0.001'/>
+              <site name='pinch_site' pos='0.018 0.020 -0.095' quat='1.3e-06 0 1 0' size='0.005' rgba='1 0 0 1'/>
+
+              <body name='moving_jaw_so101_v1_link' pos='0.0202 0.0188 -0.0234' quat='0.707 0.707 0 0'>
+                <inertial pos='-0.0016 -0.030 0.0193' mass='0.012' diaginertia='6.6e-06 5.3e-06 1.9e-06'/>
+                <joint name='gripper' range='-0.2 1.8'/>
+                <geom name='moving_jaw' pos='0 0 0.0189' type='mesh' mesh='moving_jaw_so101_v1' material='3d_printed' friction='1.8 0.01 0.001'/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+
+    <!-- Pawn on table -->
+    <body name='target_pawn' pos='0.22 0.0 0.015'>
+      <freejoint/>
+      <geom type='mesh' mesh='mesh_pawn' material='white_mat' mass='0.02' friction='1.5 0.01 0.001'/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position joint='shoulder_pan' kp='80' kv='8'/>
+    <position joint='shoulder_lift' kp='120' kv='12'/>
+    <position joint='elbow_flex' kp='100' kv='10'/>
+    <position joint='wrist_flex' kp='60' kv='6'/>
+    <position joint='wrist_roll' kp='50' kv='5'/>
+    <position joint='gripper' kp='40' kv='4'/>
+  </actuator>
+</mujoco>

@@ -1,0 +1,14 @@
+string operation_id
+uint64 game_version
+builtin_interfaces/Time after
+float32 timeout_seconds
+uint8[64] expected
+uint8[32] expected_rack
+uint8[48] expected_tray
+---
+string operation_id
+uint64 game_version
+bool success
+string reason
+ai_gambit_interfaces/BoardObservation board
+ai_gambit_interfaces/RackObservation rack

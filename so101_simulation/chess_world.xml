@@ -1,0 +1,171 @@
+<mujoco model="chess_world">
+    <compiler angle="radian"/>
+    <option integrator="implicitfast" timestep="0.002" iterations="50"/>
+
+    <visual>
+        <headlight diffuse="0.7 0.7 0.7" ambient="0.3 0.3 0.3" specular="0.1 0.1 0.1"/>
+        <rgba haze="0.15 0.25 0.35 1"/>
+        <global azimuth="2.8" elevation="-0.35"/>
+    </visual>
+
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+        <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+        <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+
+        <!-- 8x8 Chessboard Texture & Piece Materials -->
+        <texture type="2d" name="chess_grid" builtin="checker" rgb1="0.92 0.88 0.80" rgb2="0.22 0.15 0.10" width="512" height="512"/>
+        <material name="board_grid_mat" texture="chess_grid" texrepeat="4 4" reflectance="0.05"/>
+        <material name="board_border_mat" rgba="0.35 0.22 0.12 1" reflectance="0.1"/>
+        <material name="white_mat" rgba="0.95 0.93 0.88 1" reflectance="0.2"/>
+        <material name="black_mat" rgba="0.15 0.15 0.18 1" reflectance="0.2"/>
+
+        <!-- Chess Piece Meshes -->
+        <mesh name="mesh_pawn"   file="assets/chess_pieces/pawn.stl"   scale="0.001 0.001 0.001"/>
+        <mesh name="mesh_rook"   file="assets/chess_pieces/Rook.stl"   scale="0.0001 0.0001 0.0001"/>
+        <mesh name="mesh_knight" file="assets/chess_pieces/Knight.stl" scale="0.0001 0.0001 0.0001"/>
+        <mesh name="mesh_bishop" file="assets/chess_pieces/Bishop.stl" scale="0.0001 0.0001 0.0001"/>
+        <mesh name="mesh_queen"  file="assets/chess_pieces/Queen.stl"  scale="0.0001 0.0001 0.0001"/>
+        <mesh name="mesh_king"   file="assets/chess_pieces/King.stl"   scale="0.0001 0.0001 0.0001"/>
+
+        <!-- Robotic Arm Meshes -->
+        <mesh name="base_motor_holder_so101_v1" file="assets/base_motor_holder_so101_v1.stl"/>
+        <mesh name="base_so101_v2" file="assets/base_so101_v2.stl"/>
+        <mesh name="sts3215_03a_v1" file="assets/sts3215_03a_v1.stl"/>
+        <mesh name="waveshare_mounting_plate_so101_v2" file="assets/waveshare_mounting_plate_so101_v2.stl"/>
+        <mesh name="motor_holder_so101_base_v1" file="assets/motor_holder_so101_base_v1.stl"/>
+        <mesh name="rotation_pitch_so101_v1" file="assets/rotation_pitch_so101_v1.stl"/>
+        <mesh name="upper_arm_so101_v1" file="assets/upper_arm_so101_v1.stl"/>
+        <mesh name="under_arm_so101_v1" file="assets/under_arm_so101_v1.stl"/>
+        <mesh name="motor_holder_so101_wrist_v1" file="assets/motor_holder_so101_wrist_v1.stl"/>
+        <mesh name="sts3215_03a_no_horn_v1" file="assets/sts3215_03a_no_horn_v1.stl"/>
+        <mesh name="wrist_roll_pitch_so101_v2" file="assets/wrist_roll_pitch_so101_v2.stl"/>
+        <mesh name="wrist_roll_follower_so101_v1" file="assets/wrist_roll_follower_so101_v1.stl"/>
+        <mesh name="moving_jaw_so101_v1" file="assets/moving_jaw_so101_v1.stl"/>
+
+        <!-- Colors -->
+        <material name="3d_printed" rgba="1.0 0.82 0.12 1.0"/>
+        <material name="sts3215" rgba="0.1 0.1 0.1 1.0"/>
+    </asset>
+
+    <contact>
+       <exclude body1="shoulder_link" body2="lower_arm_link"/>
+       <exclude body1="lower_arm_link" body2="moving_jaw_so101_v1_link"/>
+       <exclude body1="wrist_link" body2="moving_jaw_so101_v1_link"/>
+    </contact>
+
+    <worldbody>
+        <light pos="0.25 0 3.5" dir="0 0 -1" directional="true"/>
+        <geom name="floor" size="0 0 0.05" pos="0 0 0" type="plane" material="groundplane"/>
+
+        <!-- CAMERAS -->
+        <camera name="top_camera" pos="0.25 0.0 0.65" xyaxes="1 0 0 0 1 0" fovy="55"/>
+        <camera name="side_camera" pos="0.65 -0.45 0.35" xyaxes="0.6 0.8 0 -0.3 0.22 0.92" fovy="50"/>
+
+        <!-- CHESSBOARD (Centered at x=0.25, y=0.0 within robot sweet spot) -->
+        <body name="chessboard" pos="0.25 0.0 0.0">
+            <geom name="board_frame" type="box" size="0.13 0.13 0.004" pos="0 0 0.004" material="board_border_mat"/>
+            <geom name="board_surface" type="box" size="0.12 0.12 0.005" pos="0 0 0.005" material="board_grid_mat" friction="1.0 0.005 0.0001"/>
+        </body>
+
+        <!-- SO-101 ROBOTIC ARM (Follower Variant) -->
+        <geom pos="-0.00636471 -9.94414e-05 -0.0024" quat="0.499998 0.5 0.500002 0.5" type="mesh" mesh="base_motor_holder_so101_v1" material="3d_printed" contype="0" conaffinity="0"/>
+        <geom pos="-0.00636471 -8.97657e-09 -0.0024" quat="0.499998 0.5 0.500002 0.5" type="mesh" mesh="base_so101_v2" material="3d_printed" contype="0" conaffinity="0"/>
+        <geom pos="0.0263353 -8.97657e-09 0.0437" quat="1 0 0 0" type="mesh" mesh="sts3215_03a_v1" material="sts3215" contype="0" conaffinity="0"/>
+        <geom pos="-0.0309827 -0.000199441 0.0474" quat="0.499998 0.5 0.500002 0.5" type="mesh" mesh="waveshare_mounting_plate_so101_v2" material="3d_printed" contype="0" conaffinity="0"/>
+
+        <body name="shoulder_link" pos="0.0388353 -8.97657e-09 0.0624" quat="1.76036e-12 1.32679e-06 -1 -1.32679e-06">
+          <inertial pos="-0.0307604 -1.66727e-05 -0.0252713" quat="0.999865 0.00149568 0.0097084 0.0132043" mass="0.100006" diaginertia="8.37836e-05 8.10388e-05 2.39552e-05"/>
+          <joint name="shoulder_pan" range="-3.14159 3.14159"/>
+          <geom pos="-0.0303992 0.000422241 -0.0417" quat="0.499998 0.5 0.5 -0.500002" type="mesh" mesh="sts3215_03a_v1" material="sts3215"/>
+          <geom pos="-0.0675992 -0.000177759 0.0158499" quat="0.499998 0.5 -0.5 0.500002" type="mesh" mesh="motor_holder_so101_base_v1" material="3d_printed"/>
+          <geom pos="0.0122008 2.22413e-05 0.0464" quat="0.707105 -0.707108 0 0" type="mesh" mesh="rotation_pitch_so101_v1" material="3d_printed" contype="0" conaffinity="0"/>
+
+          <body name="upper_arm_link" pos="-0.0303992 -0.0182778 -0.0542" quat="0.499998 -0.5 -0.5 -0.500002">
+            <inertial pos="-0.0898471 -0.00838224 0.0184089" quat="0.453195 0.454063 0.541891 0.542951" mass="0.103" diaginertia="0.000150873 0.000142487 3.72451e-05"/>
+            <joint name="shoulder_lift" range="-2.5 2.5"/>
+            <geom pos="-0.11257 -0.0155 0.0187" quat="9.38184e-07 -0.707105 0.707108 -9.38187e-07" type="mesh" mesh="sts3215_03a_v1" material="sts3215"/>
+            <geom pos="-0.065085 0.012 0.0182" quat="1.32679e-06 1 0 0" type="mesh" mesh="upper_arm_so101_v1" material="3d_printed"/>
+
+            <body name="lower_arm_link" pos="-0.11257 -0.028 0" quat="0.707105 0 0 0.707108">
+              <inertial pos="-0.0980701 0.00324376 0.0182831" quat="0.510729 0.517006 0.487966 0.483477" mass="0.104" diaginertia="0.000160262 0.000145304 2.83125e-05"/>
+              <joint name="elbow_flex" range="-2.8 2.8"/>
+              <geom pos="-0.0648499 -0.032 0.0182" quat="1.32679e-06 1 0 0" type="mesh" mesh="under_arm_so101_v1" material="3d_printed"/>
+              <geom pos="-0.0648499 -0.032 0.018" quat="1.32679e-06 -1 0 0" type="mesh" mesh="motor_holder_so101_wrist_v1" material="3d_printed"/>
+              <geom pos="-0.1224 0.0052 0.0187" quat="1.76037e-12 -1.32679e-06 1 -1.32679e-06" type="mesh" mesh="sts3215_03a_v1" material="sts3215"/>
+
+              <body name="wrist_link" pos="-0.1349 0.0052 0" quat="0.707105 0 0 -0.707108">
+                <inertial pos="-0.000103312 -0.0386143 0.0281156" quat="0.967143 0.254226 0.00162226 -0.000146307" mass="0.079" diaginertia="3.68265e-05 2.74474e-05 1.89434e-05"/>
+                <joint name="wrist_flex" range="-2.8 2.8"/>
+                <geom pos="0 -0.0424 0.0306" quat="0.499998 0.5 0.5 -0.500002" type="mesh" mesh="sts3215_03a_no_horn_v1" material="sts3215" contype="0" conaffinity="0"/>
+                <geom pos="0 -0.028 0.0181" quat="0.499998 -0.5 -0.5 -0.500002" type="mesh" mesh="wrist_roll_pitch_so101_v2" material="3d_printed" contype="0" conaffinity="0"/>
+
+                <body name="gripper_link" pos="0 -0.0611 0.0181" quat="0.0172101 -0.0172081 0.706899 0.706896">
+                  <inertial pos="0.000213627 0.000245138 -0.025187" quat="0.600717 0.355993 0.35863 0.61951" mass="0.087" diaginertia="4.33735e-05 3.77229e-05 2.42839e-05"/>
+                  <joint name="wrist_roll" range="-6.28318 6.28318"/>
+                  <geom pos="0.0077 0.0001 -0.0234" quat="0.707105 -0.707108 0 0" type="mesh" mesh="sts3215_03a_v1" material="sts3215"/>
+                  <geom name="fixed_jaw" pos="0 -0.000218214 0.000949706" quat="1.32679e-06 -1 0 0" type="mesh" mesh="wrist_roll_follower_so101_v1" material="3d_printed" friction="2.0 0.01 0.001"/>
+
+                  <!-- Calibrated pinch site for end-effector IK and grasping -->
+                  <site name="pinch_site" pos="0.018 0.020 -0.095" size="0.004" rgba="0 1 0 1"/>
+
+                  <body name="moving_jaw_so101_v1_link" pos="0.0202 0.0188 -0.0234" quat="0.707105 0.707108 0 0">
+                    <inertial pos="-0.00157495 -0.0300244 0.0192755" quat="0.695265 0.717965 -0.0245618 -0.0230097" mass="0.012" diaginertia="6.63582e-06 5.29092e-06 1.86523e-06"/>
+                    <joint name="gripper" range="-0.2 1.8"/>
+                    <geom name="moving_jaw" pos="0 0 0.0189" quat="1 0 0 0" type="mesh" mesh="moving_jaw_so101_v1" material="3d_printed" friction="2.0 0.01 0.001"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+
+        <!-- ================= WHITE PIECES (Rank 1 & 2) ================= -->
+        <body name="w_rook_a1"   pos="0.145  0.105 0.024"><freejoint name="w_rook_a1_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.025" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_rook" pos="0 0 -0.0035" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_knight_b1" pos="0.145  0.075 0.028" euler="0 0 3.14159"><freejoint name="w_knight_b1_joint"/><geom type="cylinder" size="0.0095 0.018" mass="0.025" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_knight" pos="0 0 -0.0056" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_bishop_c1" pos="0.145  0.045 0.028"><freejoint name="w_bishop_c1_joint"/><geom type="cylinder" size="0.0095 0.018" mass="0.025" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_bishop" pos="0 0 -0.0078" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_queen_d1"  pos="0.145  0.015 0.031"><freejoint name="w_queen_d1_joint"/><geom type="cylinder" size="0.0095 0.021" mass="0.03" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_queen" pos="0 0 -0.0059" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_king_e1"   pos="0.145 -0.015 0.0325"><freejoint name="w_king_e1_joint"/><geom type="cylinder" size="0.0095 0.0225" mass="0.03" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_king" pos="0 0 -0.0063" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_bishop_f1" pos="0.145 -0.045 0.028"><freejoint name="w_bishop_f1_joint"/><geom type="cylinder" size="0.0095 0.018" mass="0.025" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_bishop" pos="0 0 -0.0078" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_knight_g1" pos="0.145 -0.075 0.028" euler="0 0 3.14159"><freejoint name="w_knight_g1_joint"/><geom type="cylinder" size="0.0095 0.018" mass="0.025" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_knight" pos="0 0 -0.0056" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_rook_h1"   pos="0.145 -0.105 0.024"><freejoint name="w_rook_h1_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.025" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_rook" pos="0 0 -0.0035" material="white_mat" contype="0" conaffinity="0"/></body>
+
+        <body name="w_pawn_a2" pos="0.175  0.105 0.024"><freejoint name="w_pawn_a2_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_pawn_b2" pos="0.175  0.075 0.024"><freejoint name="w_pawn_b2_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_pawn_c2" pos="0.175  0.045 0.024"><freejoint name="w_pawn_c2_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_pawn_d2" pos="0.175  0.015 0.024"><freejoint name="w_pawn_d2_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_pawn_e2" pos="0.175 -0.015 0.024"><freejoint name="w_pawn_e2_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_pawn_f2" pos="0.175 -0.045 0.024"><freejoint name="w_pawn_f2_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_pawn_g2" pos="0.175 -0.075 0.024"><freejoint name="w_pawn_g2_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="white_mat" contype="0" conaffinity="0"/></body>
+        <body name="w_pawn_h2" pos="0.175 -0.105 0.024"><freejoint name="w_pawn_h2_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="white_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="white_mat" contype="0" conaffinity="0"/></body>
+
+        <!-- ================= BLACK PIECES (Rank 7 & 8) ================= -->
+        <body name="b_pawn_a7" pos="0.325  0.105 0.024"><freejoint name="b_pawn_a7_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_pawn_b7" pos="0.325  0.075 0.024"><freejoint name="b_pawn_b7_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_pawn_c7" pos="0.325  0.045 0.024"><freejoint name="b_pawn_c7_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_pawn_d7" pos="0.325  0.015 0.024"><freejoint name="b_pawn_d7_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_pawn_e7" pos="0.325 -0.015 0.024"><freejoint name="b_pawn_e7_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_pawn_f7" pos="0.325 -0.045 0.024"><freejoint name="b_pawn_f7_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_pawn_g7" pos="0.325 -0.075 0.024"><freejoint name="b_pawn_g7_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_pawn_h7" pos="0.325 -0.105 0.024"><freejoint name="b_pawn_h7_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.02" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_pawn" pos="0 0 -0.0044" material="black_mat" contype="0" conaffinity="0"/></body>
+
+        <body name="b_rook_a8"   pos="0.355  0.105 0.024"><freejoint name="b_rook_a8_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.025" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_rook" pos="0 0 -0.0035" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_knight_b8" pos="0.355  0.075 0.028"><freejoint name="b_knight_b8_joint"/><geom type="cylinder" size="0.0095 0.018" mass="0.025" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_knight" pos="0 0 -0.0056" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_bishop_c8" pos="0.355  0.045 0.028"><freejoint name="b_bishop_c8_joint"/><geom type="cylinder" size="0.0095 0.018" mass="0.025" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_bishop" pos="0 0 -0.0078" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_queen_d8"  pos="0.355  0.015 0.031"><freejoint name="b_queen_d8_joint"/><geom type="cylinder" size="0.0095 0.021" mass="0.03" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_queen" pos="0 0 -0.0059" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_king_e8"   pos="0.355 -0.015 0.0325"><freejoint name="b_king_e8_joint"/><geom type="cylinder" size="0.0095 0.0225" mass="0.03" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_king" pos="0 0 -0.0063" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_bishop_f8" pos="0.355 -0.045 0.028"><freejoint name="b_bishop_f8_joint"/><geom type="cylinder" size="0.0095 0.018" mass="0.025" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_bishop" pos="0 0 -0.0078" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_knight_g8" pos="0.355 -0.075 0.028"><freejoint name="b_knight_g8_joint"/><geom type="cylinder" size="0.0095 0.018" mass="0.025" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_knight" pos="0 0 -0.0056" material="black_mat" contype="0" conaffinity="0"/></body>
+        <body name="b_rook_h8"   pos="0.355 -0.105 0.024"><freejoint name="b_rook_h8_joint"/><geom type="cylinder" size="0.009 0.014" mass="0.025" material="black_mat" friction="1.2 0.005 0.0001"/><geom type="mesh" mesh="mesh_rook" pos="0 0 -0.0035" material="black_mat" contype="0" conaffinity="0"/></body>
+    </worldbody>
+
+    <!-- ROBUST PD ACTUATORS FOR SO-101 ARM -->
+    <actuator>
+        <position name="shoulder_pan_act"  joint="shoulder_pan"  kp="80"  kv="8"/>
+        <position name="shoulder_lift_act" joint="shoulder_lift" kp="120" kv="12"/>
+        <position name="elbow_flex_act"    joint="elbow_flex"    kp="100" kv="10"/>
+        <position name="wrist_flex_act"    joint="wrist_flex"    kp="60"  kv="6"/>
+        <position name="wrist_roll_act"    joint="wrist_roll"    kp="50"  kv="5"/>
+        <position name="gripper_act"       joint="gripper"       kp="40"  kv="4"/>
+    </actuator>
+</mujoco>
