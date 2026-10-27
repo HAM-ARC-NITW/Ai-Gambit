@@ -7,23 +7,50 @@ SCENE = os.path.join(HERE, "SO-ARM100", "Simulation", "SO101", "row_scene.xml")
 JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
 CONTROL_HZ = 30
 
+# ---- the fix from the article (ggando.com/blog/so101-rl-lift) ----
+ADD_FINGER_PADS = True                  # tiny box pads at the fingertips
+DISABLE_FINGER_MESH_COLLISION = False   # leave False unless check_pads.py shows the pads are well placed
+PAD_HALF = 0.00125                      # 2.5 mm boxes
+PAD_FRICTION = [1.0, 0.05, 0.001]
+PADS = [  # (body, name, position in that body's frame, colour)
+    ("gripper", "static_finger_pad", [-0.008875, 0.0, -0.100], [1, 0.5, 0.5, 0.8]),
+    ("moving_jaw_so101_v1", "moving_finger_pad", [-0.01136, -0.076, 0.019], [0.5, 0.5, 1, 0.8]),
+]
+
+
+def load_model():
+    spec = mujoco.MjSpec.from_file(SCENE)
+    if ADD_FINGER_PADS:
+        for body, name, pos, rgba in PADS:
+            b = spec.body(body)
+            if b is None:
+                raise SystemExit(f"Body '{body}' not found in the model.")
+            b.add_geom(name=name, type=mujoco.mjtGeom.mjGEOM_BOX, size=[PAD_HALF] * 3,
+                       pos=pos, rgba=rgba, friction=PAD_FRICTION, condim=4)
+    return spec.compile()
+
 
 class RowEnv:
     def __init__(self, height=480, width=640, render=True):
-        self.model = mujoco.MjModel.from_xml_path(SCENE)
+        self.model = load_model()
         self.data = mujoco.MjData(self.model)
         m = self.model
 
         # stickier contacts so a gripped block does not slip
         m.opt.cone = mujoco.mjtCone.mjCONE_ELLIPTIC
         m.opt.impratio = 10
+        m.opt.noslip_iterations = 3
 
-        # give the gripper jaws real friction (they came with torsion/rolling = 0)
         for g in range(m.ngeom):
             body = m.body(int(m.geom_bodyid[g])).name.lower()
             if "gripper" in body or "jaw" in body:
-                m.geom_friction[g] = [1.5, 0.02, 0.002]
+                if m.geom(g).name.endswith("_finger_pad"):
+                    continue
+                m.geom_friction[g] = [1.0, 0.05, 0.001]
                 m.geom_condim[g] = 4
+                if DISABLE_FINGER_MESH_COLLISION and ADD_FINGER_PADS:
+                    m.geom_contype[g] = 0
+                    m.geom_conaffinity[g] = 0
 
         self.qadr = [int(m.jnt_qposadr[m.joint(n).id]) for n in JOINTS]
         self.act = []
@@ -54,21 +81,24 @@ class RowEnv:
             mujoco.mj_step(m, d)
         return self.get_obs()
 
+    def get_image(self, camera="topdown"):
+        self.renderer.update_scene(self.data, camera=camera)
+        return self.renderer.render().copy()
+
     def get_obs(self, camera="topdown"):
         qpos = np.array([self.data.qpos[q] for q in self.qadr])
-        image = None
-        if self.renderer is not None:
-            self.renderer.update_scene(self.data, camera=camera)
-            image = self.renderer.render().copy()
+        image = self.get_image(camera) if self.renderer is not None else None
         return {"image": image, "qpos": qpos}
 
-    def step(self, action):
+    def step(self, action, render=True):
         """action = 6 joint targets (radians) in JOINTS order."""
         for a, v in zip(self.act, action):
             self.data.ctrl[a] = v
         for _ in range(self.substeps):
             mujoco.mj_step(self.model, self.data)
-        return self.get_obs()
+        if render:
+            return self.get_obs()
+        return {"image": None, "qpos": np.array([self.data.qpos[q] for q in self.qadr])}
 
     # ---------- scoring only: the engine must NOT call these ----------
     def block_positions(self):

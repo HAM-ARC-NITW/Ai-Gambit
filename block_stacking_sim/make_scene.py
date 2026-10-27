@@ -7,10 +7,12 @@ OUT = os.path.join(SO101, "row_scene.xml")
 
 # ---------- settings you can change ----------
 N_BLOCKS = 4
-ROW_X = 0.22          # how far in front of the world origin the row sits (m)
+ROW_X = 0.19          # how far in front of the world origin the row sits (m)
 GAP = 0.04            # empty space between neighbouring blocks (m)
 SQUARE_SIDE = 0.07    # white square side length (m)
-SQUARE_MARGIN = 0.09  # distance from the last block to the square's centre (m)
+SQUARE_MARGIN = 0.07  # distance from the last block to the square's centre (m)
+SQUARE_X = None       # set both to place the white square exactly (m)
+SQUARE_Y = None
 # ---------------------------------------------
 
 dims_file = os.path.join(HERE, "block_dims.json")
@@ -22,7 +24,7 @@ print(f"block size (x, y, z): {BW*1000:.1f} x {BD*1000:.1f} x {BH*1000:.1f} mm")
 
 pitch = BD + GAP                                   # centre-to-centre distance along the row
 ys = [(i - (N_BLOCKS - 1) / 2) * pitch for i in range(N_BLOCKS)]
-sq_x, sq_y = ROW_X, ys[-1] + SQUARE_MARGIN
+sq_x, sq_y = 0.09, 0.17
 colours = ["0.9 0.15 0.15 1", "0.15 0.75 0.25 1", "0.2 0.35 0.9 1", "0.95 0.8 0.1 1"]
 
 bodies = ""
