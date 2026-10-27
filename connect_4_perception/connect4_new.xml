@@ -1,0 +1,48 @@
+<mujoco model="connect4_game">
+    <!-- Reuse the arm and its meshes from the existing arm simulation. -->
+    <include file="../simulation/so101_new_calib.xml" />
+    <compiler angle="radian" meshdir="../simulation/assets" autolimits="true"/>
+    <option gravity="0 0 -9.81" timestep="0.002"/>
+
+    <visual>
+        <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0" />
+        <rgba haze="0.15 0.25 0.35 1" />
+        <global azimuth="160" elevation="-20" />
+    </visual>
+
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="512"/>
+        <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300" />
+        <material name="floor_mat" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+        <material name="board_mat" rgba="0.5 0.1 0.3 1" reflectance="0.1"/>
+        <material name="red_disk" rgba="0.9 0.1 0.1 1" reflectance="0.15"/>
+
+        <!-- Mesh paths start at meshdir (simulation/assets). These two stay
+             in connect_4; the arm meshes are reused without copying them. -->
+        <mesh name="board_mesh" file="../../connect_4/connect4_board.stl" scale="0.001 0.001 0.001"/>
+        <mesh name="token_mesh" file="../../connect_4/connect4_token.stl" scale="0.001 0.001 0.001"/>
+    </asset>
+
+    <worldbody>
+        <light pos="0 0 3.5" dir="0 0 -1" directional="true"/>
+        <geom name="ground" type="plane" size="2 2 0.1" material="floor_mat"/>
+        <camera name="top_camera" pos="0.25 0.0 0.6" xyaxes="1 0 0 0 1 0" fovy="60" />
+
+        <!-- Angles are radians: pi/2 is the intended 90-degree board rotation. -->
+        <body name="board" pos="0.25 0.0 0.0" euler="0 0 1.5707963267948966">
+            <geom type="mesh" mesh="board_mesh" material="board_mat" mass="5.0"/>
+        </body>
+
+        <!-- Sample Token Placed Nearby -->
+        <body name="red_token_1" pos="0.175 0.12 0.004">
+            <geom type="mesh" mesh="token_mesh" material="red_disk"/>
+        </body>
+    </worldbody>
+
+    <keyframe>
+        <!-- Default starting keyframe for the SO-101 arm -->
+        <key name="test"
+             qpos="0.0 -1.15 1.15 1.15 0.0 0.0"
+             ctrl="0.0 -1.15 1.15 1.15 0.0 0.0"/>
+    </keyframe>
+</mujoco>
