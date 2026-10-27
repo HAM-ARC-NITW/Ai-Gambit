@@ -109,7 +109,7 @@ Use `operation_id` to ignore duplicates and `game_version` to require consecutiv
 board versions. The topic is a live notification, not durable storage: on a missed
 version or reconnect, resynchronize the board before accepting more moves. A reset
 is a separate engine reset, not a coordinate event. There is no Connect 4 engine
-API in this checkout; `engine_stuff/engine.py` belongs to block stacking. Replace
+API in this checkout; `engine_stuff` supplies the separate Stockfish chess adapter. Replace
 the small demonstrated consumer with the real engine's input method when available.
 
 ## Simple code map

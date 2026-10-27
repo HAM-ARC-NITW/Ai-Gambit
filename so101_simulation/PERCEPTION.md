@@ -9,9 +9,10 @@ Python/MuJoCo calls. Full ROS 2 movement/game integration is still pending. The
 prepared ROS perception bridge has not been build/runtime-validated in Humble.
 MoveIt 2 and ros2_control have not been connected.
 
-**The current opponent is a temporary placeholder.** python-chess owns the rules,
-and a small local search chooses moves until the team's custom chess engine is
-integrated. See the [main README](../README.md) for the complete implementation
+**The opponent uses Stockfish through UCI.** python-chess owns the rules and
+confirmed position; Stockfish chooses a legal reply without committing it.
+See the [engine guide](../engine_stuff/README.md) for setup and settings, and the
+[main README](../README.md) for the complete implementation
 overview, exact scenario list, recorded validation and remaining work.
 
 ## Start on Windows
@@ -22,6 +23,7 @@ From the repository root, using PowerShell:
 # First-time setup only. The existing project environment already has these.
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r .\so101_simulation\requirements.txt
+powershell -File .\engine_stuff\install_stockfish.ps1
 
 # Play White against the arm.
 .\.venv\Scripts\python.exe .\so101_simulation\play_chess.py
@@ -73,12 +75,11 @@ placement too, which is useful for quick perception experiments.
 .\.venv\Scripts\python.exe .\so101_simulation\play_chess.py --fen "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
 ```
 
-The temporary opponent uses negamax with alpha-beta pruning, material values and
-a central-square bonus. python-chess supplies legal moves and the game position.
-`--depth 1`, `2` or `3` controls its search; the default is two plies (an arm move
-and a possible human reply). Replace `choose_move()` in `chess_game.py` to connect
-the team's custom engine while preserving camera verification before commits.
-No internet connection or external engine executable is needed during play.
+The Stockfish executable is required; install it using
+`powershell -File .\engine_stuff\install_stockfish.ps1` on a fresh Windows checkout.
+Play then works offline. `--think-time` defaults to 0.5 seconds per reply,
+`--skill` to 10 (0–20), and `--depth N` optionally caps search depth. Engine moves
+still pass through physical execution and camera verification before commits.
 
 ## Visually inspect the experiments
 

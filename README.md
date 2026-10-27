@@ -9,9 +9,9 @@ Ai-Gambit simulates an SO-101 arm moving chess pieces and uses an overhead RGB
 camera to observe the board, promotion rack and capture storage. You can play
 White against the arm, inspect perception experiments, or run the motion demo.
 
-**The current chess opponent is a temporary placeholder.** It uses python-chess
-for the rules and a small Python search for choosing moves. The team's custom
-chess engine has not been connected yet.
+**The chess opponent now uses Stockfish through UCI.** python-chess maintains
+the rules and confirmed position; Stockfish chooses the arm's replies. See the
+[engine setup guide](engine_stuff/README.md) for installation and settings.
 
 **Full ROS 2 integration is still pending.** The working Windows game uses direct
 Python calls into MuJoCo. ROS perception messages, services, TF2 publishing and a
@@ -31,7 +31,7 @@ ros2_control.
 - [Coordinates and configuration](#coordinates-and-configuration)
 - [Move acceptance and special cases](#move-acceptance-and-special-cases)
 - [Promotion and storage inventory](#promotion-and-storage-inventory)
-- [Temporary chess engine](#temporary-chess-engine)
+- [Stockfish chess engine](#stockfish-chess-engine)
 - [Visual experiments and automated tests](#visual-experiments-and-automated-tests)
 - [ROS 2 status and pending integration](#ros-2-status-and-pending-integration)
 - [Limits of the current implementation](#limits-of-the-current-implementation)
@@ -50,7 +50,7 @@ build commands, interface definitions and real-camera calibration instructions.
 | RGB perception | AprilTag localization, board rectification, board/rack/tray occupancy, offsets, stability and freshness checks | Implemented and tested in controlled rendered scenes |
 | Game coordination | Legal-outcome comparison, inventory tracking, baseline versions and verification before committing a turn | Working through direct Python calls |
 | Playing mode | Click/type White moves; arm animates Black replies; camera verifies both | Working in Windows simulation |
-| Chess opponent | Small negamax search using python-chess rules | **Temporary placeholder; custom engine integration pending** |
+| Chess opponent | Stockfish through python-chess UCI, with bounded thinking time and adjustable skill | Integrated with camera verification before commits |
 | ROS perception transport | Image/CameraInfo subscriptions, typed observations, services, watchdog and TF2 | Code prepared; ROS build/runtime validation pending |
 | ROS movement and game orchestration | ROS actions/nodes connecting coordinator, controller and simulation | **Pending** |
 | MoveIt 2 / ros2_control | Planning scene, trajectory execution and hardware interfaces | **Pending** |
@@ -67,6 +67,8 @@ py -3.12 -m venv .venv
 
 # Also use this command when updating an existing environment.
 .\.venv\Scripts\python.exe -m pip install -r .\so101_simulation\requirements.txt
+# First-time Stockfish setup for playing mode.
+powershell -File .\engine_stuff\install_stockfish.ps1
 ```
 
 The commands below explicitly use this environment, so PowerShell activation is
@@ -81,8 +83,8 @@ optional. Your editor must also use `.venv\Scripts\python.exe` when running file
 | python-chess | Chess position, legal moves, special moves and game outcomes |
 | pytest | Automated perception contract and geometry tests |
 
-Native Windows play does not require ROS, a separate engine executable, or an
-internet connection after installing dependencies.
+Native Windows play requires the Stockfish executable installed above. It does
+not require ROS or an internet connection after dependencies and engine setup.
 
 ## Run the different modes
 
@@ -197,7 +199,8 @@ Useful playing-mode options:
 ```
 
 `--moves` supplies White inputs for scripted/headless replay; Black replies are
-chosen by the opponent. `--depth` accepts 1, 2 or 3 and defaults to 2. `--speed`
+chosen by Stockfish. `--think-time` defaults to 0.5 seconds, `--skill` to 10
+(range 0–20), and `--depth` optionally caps search depth. `--speed`
 adjusts animated playback pacing. `--exit-after-demo` closes a completed visual
 replay and is useful for GUI smoke checks. `--fps` and `--low-graphics` are options
 of the motion demo, not options of `play_chess.py`.
@@ -490,26 +493,25 @@ checks availability and endpoint/approach reachability before starting the
 animated transfer sequence. Reinitializing a FEN with extra promoted pieces uses
 the configured spare inventory where original piece models are insufficient.
 
-## Temporary chess engine
+## Stockfish chess engine
 
-**The opponent in `chess_game.py` is a temporary placeholder for testing the
-perception, coordinator and robot loop. It is not the team's final chess engine.**
+[`stockfish_engine.py`](engine_stuff/stockfish_engine.py) replaces the former
+negamax placeholder. `play_chess.py` starts one Stockfish process, supplies a copy
+of the confirmed board and move history, and receives a legal move. The existing
+arm/perception pipeline executes and verifies it before committing the turn.
+Engine search never changes the official position.
 
-`python-chess` maintains the rules and legal game position. The local
-`choose_move(board, depth)` function chooses an opponent move using deterministic
-negamax search with alpha-beta pruning. Its evaluation uses piece material and a
-small central-square bonus. Material values are pawn 100, knight 320, bishop 330,
-rook 500 and queen 900; mate/draw outcomes are handled separately.
+Install the official Windows executable on a fresh checkout with
+`powershell -File .\engine_stuff\install_stockfish.ps1`. Launch normally using
+`.\so101_simulation\play_chess.cmd`. Play is offline after installation. Use
+`--engine PATH` or `STOCKFISH_PATH` for a different executable. There is no silent
+fallback if the engine is missing or fails.
 
-The default depth is two plies: one arm move and one possible human reply.
-`--depth 1`, `2` or `3` changes that horizon. This is a basic testing opponent;
-search depth and passing simulation tests are not measures of competitive strength.
-
-The replacement point is `choose_move()` in
-[`chess_game.py`](so101_simulation/chess_game.py). A future engine adapter should
-take the confirmed position and return a legal move, including promotion suffixes
-where needed. It must preserve the coordinator's pending-versus-confirmed-state
-contract: choosing a move must not commit it before physical verification.
+Defaults are skill 10, 0.5 seconds per reply, one thread and 64 MB hash. Optional
+`--depth N` caps search as well as the time limit. These settings control engine
+effort/strength; they are not a measured Elo or robot reliability rating. The
+[engine guide](engine_stuff/README.md) documents setup, testing and the cleanup of
+the old block-stacking files. The team's custom engine is not used.
 
 Perception publishes occupancy rather than inventing a FEN or continuously
 classifying all twelve piece/color combinations. The engine/coordinator owns

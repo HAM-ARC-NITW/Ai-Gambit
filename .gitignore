@@ -4,6 +4,8 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.local_backups/
+engine_stuff/bin/
 so101_simulation/perception_results/
 so101_simulation/perception_results_check/
 so101_simulation/perception_results_tuning/

@@ -5,9 +5,10 @@ playable game and visual experiments. The [main project README](../README.md)
 explains the complete architecture, what has been implemented, all 56 perception
 scenarios, validation results, limitations and pending work.
 
-**The chess opponent is a temporary placeholder.** python-chess supplies the
-rules, and `chess_game.py` contains a small negamax/alpha-beta move search. The
-team's custom engine has not been connected.
+**The chess opponent uses Stockfish.** python-chess supplies the rules and
+confirmed position. The [engine guide](../engine_stuff/README.md) explains setup,
+`--think-time`, `--skill`, optional `--depth` and executable selection. The former
+negamax placeholder has been removed; camera verification still gates every move.
 
 **Full ROS 2 integration is pending.** These Windows runners call Python/MuJoCo
 directly. Prepared ROS perception interfaces exist under `../perception_ws/src`,
@@ -20,6 +21,7 @@ From the repository root in PowerShell, create `.venv` if needed and install:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r .\so101_simulation\requirements.txt
+powershell -File .\engine_stuff\install_stockfish.ps1
 
 # Play White against the arm: 3D viewer, overhead camera and occupancy grid.
 .\so101_simulation\play_chess.cmd
