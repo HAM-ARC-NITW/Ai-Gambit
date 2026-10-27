@@ -6,7 +6,7 @@ setup(
     name=package_name,
     version='0.0.1',
     packages=[package_name],
-    package_data={package_name: ['workspace.json']},
+    package_data={package_name: ['workspace.json','connect4.json']},
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
@@ -22,6 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
             'perception_node = ai_gambit_perception.perception_node:main',
+            'connect4_node = ai_gambit_perception.connect4_node:main',
         ],
     },
 )

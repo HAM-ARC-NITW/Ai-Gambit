@@ -1,5 +1,10 @@
 # Ai-Gambit: robotic chess in MuJoCo
 
+Connect 4 has a separate [perception simulation and run guide](connect_4_perception/README.md),
+with a front RGB camera, visual fault scenarios, verified virtual drops and tested
+ROS 2 Humble perception transport. Connect 4 arm motion remains pending. The
+status and instructions below describe the chess system.
+
 Ai-Gambit simulates an SO-101 arm moving chess pieces and uses an overhead RGB
 camera to observe the board, promotion rack and capture storage. You can play
 White against the arm, inspect perception experiments, or run the motion demo.

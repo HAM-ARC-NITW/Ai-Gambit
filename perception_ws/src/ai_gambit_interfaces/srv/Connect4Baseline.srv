@@ -1,0 +1,7 @@
+string operation_id
+uint64 game_version
+uint8[42] expected
+uint8[42] expected_feeder
+---
+bool success
+string reason

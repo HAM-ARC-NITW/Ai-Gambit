@@ -1,0 +1,16 @@
+# snapshot: wait for fresh stable observation; verify: also match a baseline and
+# expected outcome; reset: require a fresh empty grid (does not prove slider lock).
+string mode
+string operation_id
+uint64 game_version
+builtin_interfaces/Time after
+float32 timeout_seconds
+uint8[42] expected
+uint8[42] expected_feeder
+---
+bool success
+string reason
+ai_gambit_interfaces/Connect4Observation observation
+---
+string status
+float32 elapsed_seconds
