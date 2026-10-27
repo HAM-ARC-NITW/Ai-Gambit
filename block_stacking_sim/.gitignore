@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.bak*
+*.png
+*.gif
+setup_output.txt
+SO-ARM100/

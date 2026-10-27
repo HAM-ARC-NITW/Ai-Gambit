@@ -1,0 +1,115 @@
+opening the MuJoCo window: 4196 frames (140 s). Close the window to exit.
+engine ready. gripper open=1.65 closed=-0.17, jaws stick out 0.6 cm, block 3.0 cm
+   camera sees: [('red', (np.float64(0.19), np.float64(-0.106))), ('yellow', (np.float64(0.027), np.float64(-0.041))), ('yellow', (np.float64(0.19), np.float64(0.106)))]
+camera sees 3 blocks; white square at [0.09 0.17]
+checking that the arm can reach each tower level:
+   level 1: reachable
+   level 2: NOT REACHABLE
+   level 3: NOT REACHABLE
+WARNING: the white square is too far or awkward for those levels.
+         Run  python reach_check.py  to find a better spot for it.
+
+tower height 0, 3 blocks still loose
+picking the yellow block at [0.19  0.106] (variant 1: +0 mm height, +0 mm sideways)
+   above the block (hover 0.070), descending to tip height 0.015
+   gripper closed to 0.29 rad open (needs > 0.12 to be holding a block)
+   after lifting: HOLDING the block (0.24 rad)
+   carrying to tower level 1
+   camera sees: [('red', (np.float64(0.19), np.float64(-0.106))), ('yellow', (np.float64(0.027), np.float64(-0.041))), ('yellow', (np.float64(0.088), np.float64(0.173)))]
+   STACKED. tower is now 1 high
+
+tower height 1, 2 blocks still loose
+picking the yellow block at [ 0.027 -0.041] (variant 1: +0 mm height, +0 mm sideways)
+   the arm cannot get over the block at [ 0.027 -0.041] (tried hover heights [0.07, 0.055, 0.045])
+   skipping this block, trying a different one
+
+tower height 1, 2 blocks still loose
+picking the red block at [ 0.19  -0.106] (variant 1: +0 mm height, +0 mm sideways)
+   above the block (hover 0.070), descending to tip height 0.015
+   gripper closed to 0.26 rad open (needs > 0.12 to be holding a block)
+   after lifting: HOLDING the block (0.24 rad)
+   carrying to tower level 2
+   cannot reach [0.09 0.17] at z=0.109 (lean limit 90): 2.9 cm off, lean 10 deg
+   cannot place the block, putting it back down
+   camera sees: [('red', (np.float64(0.189), np.float64(-0.105))), ('yellow', (np.float64(0.027), np.float64(-0.041))), ('yellow', (np.float64(0.088), np.float64(0.173)))]
+   the block is not on the tower, will retry
+
+tower height 1, 2 blocks still loose
+picking the red block at [ 0.189 -0.105] (variant 2: -5 mm height, +0 mm sideways)
+   above the block (hover 0.070), descending to tip height 0.010
+   gripper closed to 0.00 rad open (needs > 0.12 to be holding a block)
+   camera sees: [('red', (np.float64(0.181), np.float64(-0.088))), ('yellow', (np.float64(0.027), np.float64(-0.041))), ('yellow', (np.float64(0.088), np.float64(0.173)))]
+   the block is not on the tower, will retry
+
+tower height 1, 2 blocks still loose
+picking the red block at [ 0.181 -0.088] (variant 3: -5 mm height, +6 mm sideways)
+   above the block (hover 0.070), descending to tip height 0.010
+   gripper closed to 0.20 rad open (needs > 0.12 to be holding a block)
+   after lifting: HOLDING the block (0.19 rad)
+   carrying to tower level 2
+   cannot reach [0.09 0.17] at z=0.104 (lean limit 90): 2.1 cm off, lean 8 deg
+   cannot place the block, putting it back down
+   camera sees: [('red', (np.float64(0.197), np.float64(-0.092))), ('yellow', (np.float64(0.027), np.float64(-0.041))), ('yellow', (np.float64(0.088), np.float64(0.173)))]
+   the block is not on the tower, will retry
+
+tower height 1, 2 blocks still loose
+picking the red block at [ 0.197 -0.092] (variant 4: -5 mm height, -6 mm sideways)
+   above the block (hover 0.070), descending to tip height 0.010
+   gripper closed to 0.27 rad open (needs > 0.12 to be holding a block)
+   after lifting: HOLDING the block (0.24 rad)
+   carrying to tower level 2
+   cannot reach [0.09 0.17] at z=0.104 (lean limit 90): 2.1 cm off, lean 8 deg
+   cannot place the block, putting it back down
+   camera sees: [('red', (np.float64(0.187), np.float64(-0.089))), ('yellow', (np.float64(0.027), np.float64(-0.041))), ('yellow', (np.float64(0.088), np.float64(0.173)))]
+   the block is not on the tower, will retry
+
+tower height 1, 2 blocks still loose
+picking the red block at [ 0.187 -0.089] (variant 5: +5 mm height, +0 mm sideways)
+   above the block (hover 0.070), descending to tip height 0.020
+   gripper closed to 0.23 rad open (needs > 0.12 to be holding a block)
+   after lifting: HOLDING the block (0.21 rad)
+   carrying to tower level 2
+   cannot reach [0.09 0.17] at z=0.114 (lean limit 90): 3.7 cm off, lean 14 deg
+   cannot place the block, putting it back down
+   camera sees: [('red', (np.float64(0.192), np.float64(-0.08))), ('yellow', (np.float64(0.027), np.float64(-0.041))), ('yellow', (np.float64(0.088), np.float64(0.173)))]
+   the block is not on the tower, will retry
+
+tower height 1, 2 blocks still loose
+picking the red block at [ 0.192 -0.08 ] (variant 6: -8 mm height, +0 mm sideways)
+   above the block (hover 0.070), descending to tip height 0.008
+   gripper closed to 0.19 rad open (needs > 0.12 to be holding a block)
+   after lifting: HOLDING the block (0.17 rad)
+   carrying to tower level 2
+   cannot reach [0.09 0.17] at z=0.102 (lean limit 90): 1.8 cm off, lean 6 deg
+   cannot place the block, putting it back down
+   camera sees: [('red', (np.float64(0.193), np.float64(-0.08))), ('yellow', (np.float64(0.027), np.float64(-0.041))), ('yellow', (np.float64(0.088), np.float64(0.173)))]
+   the block is not on the tower, will retry
+
+tower height 1, 2 blocks still loose
+picking the red block at [ 0.193 -0.08 ] (variant 1: +0 mm height, +0 mm sideways)
+   above the block (hover 0.070), descending to tip height 0.015
+   gripper closed to 0.26 rad open (needs > 0.12 to be holding a block)
+   after lifting: HOLDING the block (0.23 rad)
+   carrying to tower level 2
+   cannot reach [0.09 0.17] at z=0.109 (lean limit 90): 2.9 cm off, lean 10 deg
+   cannot place the block, putting it back down
+   camera sees: [('red', (np.float64(0.189), np.float64(-0.079))), ('yellow', (np.float64(0.027), np.float64(-0.041))), ('yellow', (np.float64(0.088), np.float64(0.173)))]
+   the block is not on the tower, will retry
+
+tower height 1, 2 blocks still loose
+picking the red block at [ 0.189 -0.079] (variant 2: -5 mm height, +0 mm sideways)
+   above the block (hover 0.070), descending to tip height 0.010
+   gripper closed to 0.24 rad open (needs > 0.12 to be holding a block)
+   after lifting: HOLDING the block (0.22 rad)
+   carrying to tower level 2
+   cannot reach [0.09 0.17] at z=0.104 (lean limit 90): 2.1 cm off, lean 8 deg
+   cannot place the block, putting it back down
+   camera sees: [('red', (np.float64(0.19), np.float64(-0.079))), ('yellow', (np.float64(0.027), np.float64(-0.041))), ('yellow', (np.float64(0.088), np.float64(0.173)))]
+   the block is not on the tower, will retry
+
+tower height 1, 2 blocks still loose
+Stopping: 8 failed grasps in a row.
+
+RESULT (true positions, for scoring only): 1 block(s) stacked on the square, centre heights [0.017]
+top block is 1 mm off the square centre
+opening the live MuJoCo window...
