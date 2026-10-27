@@ -1,7 +1,17 @@
 import os, time, argparse
 import numpy as np
 import mujoco
-from perception import DepthPerception, BH, BW, BD
+import sys
+
+PERCEPTION_PACKAGE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "perception_ws", "src", "ai_gambit_perception")
+if PERCEPTION_PACKAGE not in sys.path:
+    sys.path.insert(0, PERCEPTION_PACKAGE)
+from ai_gambit_perception.perception_node import AiGambitPerceptionNode
+import rclpy
+
+from perception import BH, BW, BD
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCENE = os.path.join(HERE, "SO-ARM100", "Simulation", "SO101", "stack_scene.xml")
@@ -54,6 +64,50 @@ class Sim:
 
     def seconds(self, s):
         self.step(int(s / self.m.opt.timestep))
+
+
+class PerceptionNodeAdapter:
+    """Feeds simulated camera frames through the ROS perception node."""
+
+    def __init__(self, model, camera="topdown"):
+        if not rclpy.ok():
+            rclpy.init()
+        self.node = AiGambitPerceptionNode()
+        self.model = model
+        self.camera = model.camera(camera).id
+        self.width, self.height = 640, 480
+        self.renderer = mujoco.Renderer(model, self.height, self.width)
+        self.focal = (self.height / 2) / np.tan(
+            np.deg2rad(model.cam_fovy[self.camera]) / 2)
+
+    def aim(self, xy, height=0.75):
+        self.model.cam_pos[self.camera] = [xy[0], xy[1], height]
+        self.model.cam_quat[self.camera] = [1.0, 0.0, 0.0, 0.0]
+
+    def detect(self, data):
+        mujoco.mj_forward(self.model, data)
+        self.renderer.update_scene(data, camera="topdown")
+        # MuJoCo returns RGB; the ROS node's cv_bridge path uses BGR.
+        frame = self.renderer.render()[..., ::-1].copy()
+        _, message = self.node.process_frame(frame)
+        cam_pos = data.cam_xpos[self.camera]
+        depth = cam_pos[2]
+        detections = []
+        for pose in message.poses:
+            x = cam_pos[0] + (pose.position.x - (self.width - 1) / 2) * depth / self.focal
+            y = cam_pos[1] - (pose.position.y - (self.height - 1) / 2) * depth / self.focal
+            detections.append({
+                "xy": np.array([x, y]),
+                "yaw": 2 * np.arctan2(pose.orientation.z, pose.orientation.w),
+                "level": int(round(pose.position.z)),
+                "pix": (pose.position.x, pose.position.y),
+            })
+        return detections
+
+    def close(self):
+        self.node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 class Arm:
@@ -547,7 +601,7 @@ def main():
     view = 0.5 * (centre + target_xy)
     if sim.vcam is not None:
         sim.vcam.lookat[:] = [view[0], view[1], 0.05]
-    cam = DepthPerception(sim.m)
+    cam = PerceptionNodeAdapter(sim.m)
     cam.aim(view)
 
     # scatter blocks in the arm's reachable zone, away from the target
@@ -571,7 +625,7 @@ def main():
     def perceive():
         arm.park()
         sim.seconds(0.5)
-        dets = cam.detect(sim.d, save=os.path.join(HERE, "perception.png"))
+        dets = cam.detect(sim.d)
         keep = [b for b in dets if 0.7 * arm.rmin < np.linalg.norm(b["xy"] - arm.base[:2]) < 1.1 * arm.rmax]
         for b in keep:
             print(f"   sees block x={b['xy'][0]:.3f} y={b['xy'][1]:.3f} yaw={np.degrees(b['yaw']):.0f}deg level={b['level']}")
@@ -579,6 +633,7 @@ def main():
 
     # failed-grasp bookkeeping: [[xy, count], ...], blocks matched by position (within 4 cm)
     fails = []
+    stack_level = 0
 
     def fail_count(xy):
         for pos, c in fails:
@@ -599,7 +654,7 @@ def main():
         for step in range(6 * N_BLOCKS):
             dets = perceive()
             on_stack = [b for b in dets if np.linalg.norm(b["xy"] - target_xy) < 0.045]
-            level = max([b["level"] for b in on_stack], default=0)
+            level = stack_level
             loose = [b for b in dets if b["level"] == 1 and np.linalg.norm(b["xy"] - target_xy) > 0.06]
             if level >= N_BLOCKS or not loose:
                 break
@@ -615,14 +670,17 @@ def main():
             print(f"   picked={arm.picked}  placed={ok}")
             if not ok:
                 add_fail(b["xy"])
+            else:
+                stack_level += 1
         dets = perceive()
-        h = max([b["level"] for b in dets if np.linalg.norm(b["xy"] - target_xy) < 0.045], default=0)
+        h = stack_level
         print(f"DONE: tower on the white box is {h} blocks high (goal {N_BLOCKS}).")
         if sim.viewer is not None:
             print("Close the viewer window to exit.")
             while True:
                 sim.step(5)
     finally:
+        cam.close()
         if sim.frames:
             import imageio
             imageio.mimsave(args.video, sim.frames, fps=30)
