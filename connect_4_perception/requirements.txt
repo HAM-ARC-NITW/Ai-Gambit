@@ -1,0 +1,4 @@
+mujoco>=3.2,<4
+numpy>=1.26
+opencv-python>=4.8
+pytest>=8
