@@ -9,9 +9,10 @@ import pytest
 import chess
 from perception_sim import Simulation
 from ai_gambit_perception.perception import Observation, Perception, SQUARES, transform
-from chess_game import Coordinator, occupancy, candidates, choose_move
+from chess_game import Coordinator, occupancy, candidates
 from run_perception import CASTLE, EP, PROMOTE, CAPTURE
 from play_chess import play_turn
+from engine_stuff.stockfish_engine import StockfishEngine
 
 
 def observation(board, sequence=2):
@@ -161,7 +162,9 @@ def test_rendered_game_round_trip(sim):
     sim.load_position(chess.Board())
     game = Coordinator(sim.detector)
     play_turn(sim,game,"e2e4")
-    reply = choose_move(game.board,depth=1)
+    engine = StockfishEngine(time_limit=.05)
+    try:reply = engine.choose_move(game.board,depth=1)
+    finally:engine.close()
     assert reply in game.board.legal_moves
     play_turn(sim,game,reply.uci())
     assert game.version == 2
