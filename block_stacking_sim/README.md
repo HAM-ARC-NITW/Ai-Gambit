@@ -41,7 +41,18 @@ Activate the environment in every new terminal with "source .venv/bin/activate",
 
     python make_scene.py   # builds SO-ARM100/Simulation/SO101/row_scene.xml
     python look.py         # optional: saves two pictures and prints block positions
-    python watch.py        # simulates, prints a log, then opens the window and replays it
+    python stack_engine.py # runs block stacking through the ROS perception node
+    python watch.py        # optional legacy grasp test
+
+The stack engine requires the ROS 2 environment containing `ai_gambit_perception`
+to be sourced first. It feeds the simulated `topdown` camera directly through
+the node's `process_frame` method; no ground-truth block positions are supplied
+to the perception path. From the `Ai-Gambit` directory, source ROS and the
+workspace before running it:
+
+    source /opt/ros/humble/setup.bash
+    source perception_ws/install/setup.bash
+    python block_stacking_sim/stack_engine.py --headless
 
 watch.py prints HELD or MISSED for each grasp attempt, then the final block position. Close the
 window to exit.
@@ -59,7 +70,9 @@ window to exit.
 - watch.py: pick-and-place attempt with the live viewer
 - look.py: quick check of the scene
 - check_setup.py: prints the robot's joints, actuators and reach
-- perception.py: depth-camera block detection (not wired into the new pipeline yet)
+- stack_engine.py: runs the simulation camera through the ROS `AiGambitPerceptionNode`
+  and converts its `PoseArray` pixel detections into simulation coordinates
+- perception.py: legacy MuJoCo depth-camera detector (kept for standalone experiments)
 
 ## Planned
 
