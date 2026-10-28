@@ -23,6 +23,7 @@ ros2_control.
 
 - [Current status](#current-status)
 - [Windows setup](#windows-setup)
+- [Linux setup](#linux-setup)
 - [Run the different modes](#run-the-different-modes)
 - [Play against the arm](#play-against-the-arm)
 - [How the current system fits together](#how-the-current-system-fits-together)
@@ -86,17 +87,112 @@ optional. Your editor must also use `.venv\Scripts\python.exe` when running file
 Native Windows play requires the Stockfish executable installed above. It does
 not require ROS or an internet connection after dependencies and engine setup.
 
+## Linux setup
+
+Tested on Ubuntu 26.04 (Python 3.14) under WSL 2 with WSLg; other recent
+Ubuntu/Debian releases need the same packages. Run everything from the
+repository root.
+
+**1. System packages** (one time):
+
+```bash
+sudo apt update
+sudo apt install python3-venv stockfish libsm6 libice6 libgl1 libegl1
+```
+
+`libsm6` and `libice6` are needed by OpenCV's game windows; without them the
+game stops with `Could not load the Qt platform plugin "xcb"`. If you cannot use
+`sudo` for Stockfish, leave it out and run `bash engine_stuff/install_stockfish.sh`,
+which downloads the official Stockfish 19 into `engine_stuff/bin` and checks its
+SHA-256. The game finds either one automatically.
+
+**2. Python environment** (one time; rerun the `pip` line after pulling changes):
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r so101_simulation/requirements.txt
+```
+
+**3. Play:**
+
+```bash
+.venv/bin/python so101_simulation/play_game.py                # you play Black
+.venv/bin/python so101_simulation/play_game.py --human white  # you move first
+```
+
+Three windows open: the MuJoCo 3D viewer, `Chess - overhead camera` and
+`Chess - board`. Play in `Chess - board` exactly as described in
+[Full game](#full-game-the-arm-reads-the-board-you-press-the-big-red-button).
+
+**4. Optional checks:**
+
+```bash
+# A scripted game with no windows (about a minute).
+.venv/bin/python so101_simulation/play_game.py --headless --human-moves e7e5 b8c6
+# The automated tests (a few minutes).
+.venv/bin/python -m pytest -q so101_simulation/test_game_loop.py so101_simulation/test_perception.py
+```
+
+On a machine with no display (for example over SSH), only `--headless` and the
+tests work. Prefix them with `MUJOCO_GL=egl` so MuJoCo renders the camera
+without a window.
+
 ## Run the different modes
 
 All commands in this section run from the repository root.
 
 | Mode | Entry point | Camera perception used? |
 | --- | --- | --- |
-| Play against the arm | `so101_simulation/play_chess.py` | Yes, before actions and for final verification |
+| **Full game: camera reads your move** | `so101_simulation/play_game.py` | Yes; your move is inferred from the camera alone after the big red button |
+| Play against the arm (declare your move) | `so101_simulation/play_chess.py` | Yes, before actions and for final verification |
 | Perception experiments | `so101_simulation/run_perception.py` | Yes, on rendered MuJoCo images |
 | Original chess motion demo | `so101_simulation/run_simulation.py` | No; uses simulator piece positions directly |
 | Original arm-only panning demo | `launch_basic_arm_spawn.py` | Displays a camera feed; no chess perception/game loop |
 | Optional ROS camera source | `so101_simulation/publish_camera.py` | Publishes sensor input for the separate ROS perception node |
+
+### Full game: the arm reads the board, you press the big red button
+
+This is the end-to-end loop connecting perception, Stockfish and motion:
+
+1. The overhead camera reads the board; it must match the confirmed position.
+2. Stockfish chooses the arm's move, the arm plays it, and the camera verifies it.
+3. You move pieces yourself and press the **big red button**. Nothing declares
+   your move: the camera compares the board, capture tray and promotion rack
+   against every legal move and works out what you played.
+4. The arm replies, and so on. The arm plays White and moves first by default.
+
+```powershell
+.\so101_simulation\play_game.cmd                  # you play Black
+.\so101_simulation\play_game.cmd --human white    # you move first
+```
+
+| How to... | Do this in the board window |
+| --- | --- |
+| Move a piece | Click one of your pieces (it lifts), then click a green dot |
+| Put a held piece back | Click its own square again |
+| Capture | Click the enemy piece's square; the captured piece goes to the tray |
+| Castle | Move the king two squares; the hand moves the rook |
+| En passant | Move your pawn; the hand removes the captured pawn |
+| Promote | Press Q/R/B/N first (default queen), then move the pawn to the last rank |
+| Take your move back | U (before pressing DONE) |
+| Finish your turn | Click the red DONE button, press Space/Enter, or double-click the red button in the 3D viewer |
+| Reload after a failed arm turn | L |
+
+The hand follows the rules of the confirmed position: it lifts only your own
+pieces, sets them down only on legal squares, and locks after one move until
+you press DONE. Pieces cannot be dragged in the 3D viewer. The hand still never
+tells the game your move; after DONE the camera works it out from the board,
+tray and rack, and nothing is committed unless it matches a legal move.
+
+```powershell
+# Scripted human moves made through the same virtual hand, no windows.
+.\.venv\Scripts\python.exe .\so101_simulation\play_game.py --headless --human-moves e7e5 b8c6 g8f6
+# Windows open; Stockfish plays your side for 3 moves, then closes.
+.\.venv\Scripts\python.exe .\so101_simulation\play_game.py --demo --auto-human 3 --exit-after-demo
+```
+
+`--think-time`, `--skill`, `--depth`, `--speed`, `--no-animation` and `--fen`
+behave as in `play_chess.py`.
 
 ### Play or inspect perception
 
@@ -580,6 +676,12 @@ possible physical object, lighting condition or arbitrary game history.
 # Perception/rules/coordinator/geometry contracts.
 .\.venv\Scripts\python.exe -B -m pytest .\so101_simulation\test_perception.py -q
 
+# Big-red-button loop: undeclared human captures, castling, en passant,
+# promotion, ambiguity prompts, wrong arrangements and undo.
+Push-Location .\so101_simulation
+..\.venv\Scripts\python.exe -B -m pytest test_game_loop.py -q
+Pop-Location
+
 # Scripted camera-verified human and animated arm turns.
 .\.venv\Scripts\python.exe .\so101_simulation\play_chess.py --headless --moves e2e4 g1f3
 
@@ -714,6 +816,9 @@ integrated ROS-controlled chess game.
 | [so101_simulation/chess_robot.py](so101_simulation/chess_robot.py) | Multi-stage transfers and original capture/move helper |
 | [so101_simulation/perception_sim.py](so101_simulation/perception_sim.py) | Generated fixtures, reusable renderer, virtual actions and transfer adapter |
 | [so101_simulation/chess_game.py](so101_simulation/chess_game.py) | Rules adapter, coordinator, occupancy matching and temporary move search |
+| [so101_simulation/play_game.py](so101_simulation/play_game.py) | End-to-end loop: camera board read, Stockfish, arm move, big red button |
+| [so101_simulation/virtual_hand.py](so101_simulation/virtual_hand.py) | The player's simulated hand: pick, place, capture to tray, undo |
+| [so101_simulation/test_game_loop.py](so101_simulation/test_game_loop.py) | Camera-only human move inference and full turn-loop tests |
 | [so101_simulation/play_chess.py](so101_simulation/play_chess.py) | Human UI, opponent turns and camera-verified game loop |
 | [so101_simulation/run_perception.py](so101_simulation/run_perception.py) | 56 named experiments, independent board scoring and HTML/JSON output |
 | [so101_simulation/test_perception.py](so101_simulation/test_perception.py) | Perception/coordinator contracts and rendered geometry tests |

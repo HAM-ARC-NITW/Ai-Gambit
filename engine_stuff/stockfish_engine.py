@@ -21,12 +21,15 @@ def find_stockfish(path=None):
     installed = shutil.which("stockfish")
     if installed:return installed
     folder = Path(__file__).resolve().parent
-    candidates = [folder/"bin/stockfish.exe",*sorted((folder/"bin").glob("stockfish/stockfish*.exe")),
-                  Path("/usr/games/stockfish")]
+    # The project installers unpack Windows .exe or Linux builds under bin/stockfish/.
+    local = [p for p in sorted((folder/"bin").glob("stockfish/stockfish*"))
+             if (p.suffix == ".exe") == (os.name == "nt")]
+    candidates = [folder/"bin/stockfish.exe",*local,Path("/usr/games/stockfish")]
     for candidate in candidates:
         if candidate.is_file():return str(candidate)
-    raise FileNotFoundError("Stockfish is missing. Run engine_stuff/install_stockfish.ps1 on Windows, "
-                            "or set STOCKFISH_PATH. See engine_stuff/README.md.")
+    raise FileNotFoundError("Stockfish is missing. Run engine_stuff/install_stockfish.ps1 on Windows or "
+                            "engine_stuff/install_stockfish.sh on Linux, or set STOCKFISH_PATH. "
+                            "See engine_stuff/README.md.")
 
 
 class StockfishEngine:

@@ -129,13 +129,26 @@ class ChessRobot:
         print(f"[ChessRobot] Move Complete! Final pos: {np.round(final_pos[:2], 4)} | Offset: {err*1000:.2f} mm")
         return success
 
+    def _reach(self, pos: np.ndarray, q_seed: Optional[np.ndarray]) -> np.ndarray:
+        """
+        Seeding IK from the previous waypoint keeps motion continuous, but from
+        some seeds (e.g. a pick at f1 toward d3 near the base) it settles about a
+        square away. Fall back to HOME, and never execute an unreached target.
+        """
+        q_sol, ok, err = self.ik.solve(pos, q_init=q_seed)
+        if not ok:
+            q_sol, ok, err = self.ik.solve(pos, q_init=HOME_POSE.copy())
+        if not ok:
+            raise ValueError(f"Arm cannot reach {np.round(pos, 3)} (IK error {err*1000:.1f} mm)")
+        return q_sol
+
     def _vertical_waypoints(self, xy_pos: np.ndarray, z_start: float, z_end: float, n_steps: int = 5, q_seed: Optional[np.ndarray] = None) -> List[np.ndarray]:
         """Generate smooth continuous joint waypoints for straight vertical descent/lift."""
         wps = []
         q_cur = q_seed
         for z in np.linspace(z_start, z_end, n_steps):
             p = np.array([xy_pos[0], xy_pos[1], z])
-            q_sol, _, _ = self.ik.solve(p, q_init=q_cur)
+            q_sol = self._reach(p, q_cur)
             wps.append(q_sol.copy())
             q_cur = q_sol
         return wps
@@ -215,7 +228,7 @@ class ChessRobot:
         try:
             # 1. Approach above pick at clearance
             pos_app_pick = np.array([source_pos[0], source_pos[1], clearance_z])
-            q_app_pick, _, _ = self.ik.solve(pos_app_pick, q_current)
+            q_app_pick = self._reach(pos_app_pick, q_current)
             q_app_pick[5] = 0.50  # Optimal opening (clears 18mm pawn, avoids 30mm adjacent squares)
             
             # Vertical descent waypoints to grasp height
@@ -232,7 +245,7 @@ class ChessRobot:
             
             # Above destination at clearance
             pos_app_place = np.array([dest_pos[0], dest_pos[1], clearance_z])
-            q_app_place, _, _ = self.ik.solve(pos_app_place, lift_pick_wps[-1])
+            q_app_place = self._reach(pos_app_place, lift_pick_wps[-1])
             q_app_place[5] = 0.35
             
             # Vertical descent waypoints to placement height

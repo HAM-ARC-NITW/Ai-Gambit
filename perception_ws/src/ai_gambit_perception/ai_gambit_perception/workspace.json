@@ -6,7 +6,7 @@
   "square_size": 0.03,
   "board_pixels": 800,
   "stable_frames": 3,
-  "max_frame_age": 1.0,
+  "max_frame_age": 2.5,
   "max_reprojection_error": 2.5,
   "max_pose_shift": 0.005,
   "max_pose_angle_degrees": 3.0,

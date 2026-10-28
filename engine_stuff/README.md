@@ -29,9 +29,10 @@ $env:STOCKFISH_PATH = 'C:\path\to\stockfish.exe'
 ```
 
 The adapter searches an explicit `--engine`, then `STOCKFISH_PATH`, then PATH,
-then the local download (and `/usr/games/stockfish` on Linux). In WSL use a Linux
-Stockfish installation, e.g. `sudo apt install stockfish`. The Windows installer
-is for the native Windows simulation. Play is offline once installed. If an
+then the local download (and `/usr/games/stockfish` on Linux). On Linux or WSL,
+use `sudo apt install stockfish`, or `bash engine_stuff/install_stockfish.sh` to
+download the same official build into this folder without `sudo`. The Windows
+installer is for the native Windows simulation. Play is offline once installed. If an
 engine is missing or fails, the program reports the error; it never silently
 switches back to the old placeholder.
 

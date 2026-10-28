@@ -24,8 +24,13 @@ from chess_robot import ChessRobot
 from chess_coords import PARK_POSE, HOME_POSE, PIECE_REST_Z, square_to_pos
 
 
-def make_workspace():
-    """Extend the original scene rather than maintaining a second robot model."""
+BUTTON_POSITION = (.22, -.45, 0)  # Outside the overhead camera's view and the arm's path.
+
+
+def make_workspace(button=False):
+    """Extend the original scene rather than maintaining a second robot model.
+    `button` adds the player's big red "my move is done" button.
+    """
     config = load_config()
     folder = HERE / "perception_assets"
     folder.mkdir(exist_ok=True)
@@ -95,7 +100,18 @@ def make_workspace():
                               ("foreign", ".025 .025 .025", ".05 .2 .85 1")):
         body = ET.SubElement(world, "body", name=name, mocap="true", pos="0 0 -1")
         ET.SubElement(body, "geom", type="box", size=size, rgba=color, contype="0", conaffinity="0")
-    path = folder / "workspace.xml"
+    if button:
+        # Sprung cap on a slide joint: double-click it, or Ctrl+drag it down,
+        # in the 3D viewer. It is appended last so existing qpos indices hold.
+        housing = ET.SubElement(world, "body", name="big_red_button_base", pos=" ".join(map(str, BUTTON_POSITION)))
+        ET.SubElement(housing, "geom", type="box", size=".045 .045 .015", pos="0 0 .015",
+                      rgba=".12 .12 .12 1", contype="0", conaffinity="0")
+        cap = ET.SubElement(housing, "body", name="big_red_button", pos="0 0 .03", gravcomp="1")
+        ET.SubElement(cap, "joint", name="big_red_button_press", type="slide", axis="0 0 1",
+                      range="-.012 0", limited="true", stiffness="40", damping="1.5")
+        ET.SubElement(cap, "geom", type="cylinder", size=".032 .008", pos="0 0 .008", mass=".05",
+                      rgba=".85 .05 .05 1", contype="0", conaffinity="0")
+    path = folder / ("workspace_button.xml" if button else "workspace.xml")
     ET.indent(root)
     with tempfile.NamedTemporaryFile(dir=folder,suffix=".xml",delete=False) as temporary:
         temp_xml = temporary.name
@@ -105,9 +121,9 @@ def make_workspace():
 
 
 class Simulation:
-    def __init__(self):
+    def __init__(self, button=False):
         self.config = load_config()
-        self.robot = ChessRobot(str(make_workspace()))
+        self.robot = ChessRobot(str(make_workspace(button)))
         self.model, self.data = self.robot.model, self.robot.data
         self.renderer = mujoco.Renderer(self.model, height=self.config["image_height"], width=self.config["image_width"])
         self.detector = Perception(self.config)
@@ -133,6 +149,35 @@ class Simulation:
         self.mapping = {}
         self.rack_inventory = [1]*32
         self.tray_inventory = [0]*48
+        self.button_ids = ()
+        if button:
+            self.button_ids = (self.model.body("big_red_button").id, self.model.body("big_red_button_base").id)
+            self.button_qpos = self.model.jnt_qposadr[self.model.joint("big_red_button_press").id]
+
+    def button_down(self):
+        return bool(self.button_ids) and self.data.qpos[self.button_qpos] < -.006
+
+    def body_at(self, square, ignore=None):
+        """The piece body physically standing on a square, or None."""
+        import chess
+        target = square_to_pos(chess.square_name(square))[:2]
+        near = [(np.linalg.norm(self.data.xpos[b][:2]-target), b) for b in self.piece_ids
+                if self.data.xpos[b][2] > 0 and b != ignore]
+        distance, body = min(near)
+        return body if distance < .012 else None
+
+    def sync_mapping(self, board):
+        """Simplified grasping attaches a known body, so after a human turn the
+        control adapter must know which body the human left on each square.
+        This plays the role of the gripper closing on whatever is there.
+        """
+        mapping = {}
+        for square in board.piece_map():
+            body = self.body_at(square)
+            if body is None:
+                raise ValueError("No graspable piece found on a confirmed square")
+            mapping[square] = body
+        self.mapping = mapping
 
     def frame(self):
         mujoco.mj_forward(self.model, self.data)
@@ -141,12 +186,14 @@ class Simulation:
 
     def snapshot(self, frames=4, effect=None, on_observation=None, **kwargs):
         """Fresh frames, rather than repeated calls using a cached timestamp."""
-        for _ in range(frames):
+        for i in range(frames):
             image = self.frame()
             if effect:
                 image = effect(image)
             obs = self.detector.process(image, **kwargs)
-            if on_observation is not None:
+            # Refresh the UI between frames only. Window updates after the last
+            # frame would age it past max_frame_age before the caller verifies it.
+            if on_observation is not None and i < frames-1:
                 on_observation(obs)
         return obs
 

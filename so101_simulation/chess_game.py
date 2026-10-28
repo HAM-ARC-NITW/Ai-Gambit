@@ -6,9 +6,22 @@ changed in exactly one place, after camera verification succeeds.
 """
 import chess
 
+UNKNOWN_STORAGE = 255
+
 
 def occupancy(board):
     return [int(board.piece_at(i) is not None) for i in range(64)]
+
+
+class AmbiguousMove(ValueError):
+    """Several legal moves explain the camera image; someone must choose."""
+    def __init__(self, options):
+        super().__init__("Ambiguous occupancy; choose one of: " + ", ".join(options))
+        self.options = options
+
+
+def changed_squares(board, observation):
+    return [chess.square_name(i) for i, (a, b) in enumerate(zip(occupancy(board), observation.occupancy)) if a != b]
 
 
 def candidates(board, observation):
@@ -47,6 +60,49 @@ class Coordinator:
                 raise ValueError("Ambiguous occupancy; choose one of: " + ", ".join(options))
             return chess.Move.from_uci(selection), options
         return chess.Move.from_uci(options[0]), options
+
+    def read_human_move(self, obs, selection=None):
+        """Infer an undeclared human move from the camera alone.
+
+        Board occupancy picks the legal candidates. Storage changes must agree:
+        a capture may add one piece to the tray (or none, if it left the
+        workspace), and a promotion may take one spare of the promoted type.
+        Returns the move plus the observed rack/tray to commit with it.
+        """
+        if obs.status != "READY" or not obs.stable:
+            raise ValueError(f"Camera is not ready ({obs.status}: {obs.reason}); clear the board and press again")
+        options = candidates(self.board, obs)
+        if not options:
+            changed = changed_squares(self.board, obs)
+            raise ValueError("No legal move matches the board. Changed squares: " + (", ".join(changed) or "none"))
+        if UNKNOWN_STORAGE in obs.rack + obs.tray:
+            raise ValueError("Rack or capture tray is not clearly visible")
+        if any(a and not b for a, b in zip(self.tray, obs.tray)):
+            raise ValueError("A piece was taken out of the capture tray")
+        if any(b and not a for a, b in zip(self.rack, obs.rack)):
+            raise ValueError("A piece was returned to the promotion rack")
+        tray_added = sum(b and not a for a, b in zip(self.tray, obs.tray))
+        rack_taken = [i for i, (a, b) in enumerate(zip(self.rack, obs.rack)) if a and not b]
+        side = 0 if self.board.turn == chess.WHITE else 1
+        consistent = []
+        for uci in options:
+            move = chess.Move.from_uci(uci)
+            if tray_added > int(self.board.is_capture(move)) + int(bool(move.promotion)):
+                continue
+            if len(rack_taken) > int(bool(move.promotion)):
+                continue
+            # Rack slots are labelled, so a taken spare identifies the promotion.
+            if rack_taken and (rack_taken[0] // 16 != side or
+                               self.detector.config["rack_types"][rack_taken[0]] != chess.piece_name(move.promotion)):
+                continue
+            consistent.append(uci)
+        if not consistent:
+            raise ValueError("Board matches " + ", ".join(options) + ", but the tray/rack changes do not")
+        if len(consistent) > 1:
+            if selection not in consistent:
+                raise AmbiguousMove(consistent)
+            return chess.Move.from_uci(selection), list(obs.rack), list(obs.tray)
+        return chess.Move.from_uci(consistent[0]), list(obs.rack), list(obs.tray)
 
     def accept(self, move, obs, operation_started, rack, tray):
         if move not in self.board.legal_moves:

@@ -186,10 +186,23 @@ class Perception:
         """
         count, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 8)
         values, confidence, offsets = [], [], []
+        grid = np.asarray(centers, float)
         for x, y in centers:
             x, y = int(x), int(y)
             patch = labels[max(0, y-radius):y+radius+1, max(0, x-radius):x+radius+1]
-            candidates = [int(i) for i in np.unique(patch) if i and stats[i, cv2.CC_STAT_AREA] > 280]
+            candidates = []
+            for i in np.unique(patch):
+                if not i or stats[i, cv2.CC_STAT_AREA] <= 280:
+                    continue
+                # In perspective a tall piece can overhang the next square (a
+                # knight's head beside a back-rank rook). A sliver of a component
+                # centred on another square belongs to that square. Larger
+                # intrusions still make this square UNKNOWN.
+                distances = np.hypot(*(grid - centroids[i]).T)
+                if (not linked_slots and np.hypot(*(centroids[i] - (x, y))) > radius
+                        and distances.min() < radius and np.count_nonzero(patch == i) < .15*patch.size):
+                    continue
+                candidates.append(int(i))
             area = sum(int(stats[i, cv2.CC_STAT_AREA]) for i in candidates)
             offset = [0., 0.]
             if not candidates:

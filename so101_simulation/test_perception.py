@@ -151,6 +151,15 @@ def test_rendered_calibration_and_orientation(sim):
     assert SQUARES[0] == "a1" and SQUARES[-1] == "h8"
 
 
+def test_knight_overhang_belongs_to_its_own_square(sim):
+    # In perspective a black knight's head on f2 reaches into f1. That sliver
+    # once made the rook's square UNKNOWN and blocked a legal Nxf2.
+    board = chess.Board("4k3/8/8/8/8/8/5n2/5RK1 w - - 0 1")
+    sim.load_position(board)
+    obs = sim.snapshot()
+    assert obs.status == "READY" and obs.occupancy == occupancy(board)
+
+
 def test_stable_frames_are_required(sim):
     sim.load_position(chess.Board())
     sim.detector.previous,sim.detector.stable_count = None,0
