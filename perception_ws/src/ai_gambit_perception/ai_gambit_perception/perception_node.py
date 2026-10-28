@@ -136,7 +136,7 @@ class AiGambitPerceptionNode(Node):
             p = Pose()
             p.position.x = block['x']
             p.position.y = block['y']
-            p.position.z = block['level']
+            p.position.z = float(block['level'])  # ROS Point fields require float, including whole levels.
             p.orientation.z = np.sin(block['yaw'] / 2.0)
             p.orientation.w = np.cos(block['yaw'] / 2.0)
             pose_array_msg.poses.append(p)

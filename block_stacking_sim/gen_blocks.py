@@ -3,7 +3,8 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STL = os.path.join(HERE, "meshes", "block1.stl")
-SCENE_DIR = os.path.join(HERE, "SO-ARM100", "Simulation", "SO101")
+SCENE_DIR = os.path.join(HERE, "generated")
+os.makedirs(SCENE_DIR,exist_ok=True)
 SCENE = os.path.join(SCENE_DIR, "stack_scene.xml")
 N_BLOCKS = 4
 RGBA = "0.8 0.1 0.5 1"
@@ -51,6 +52,11 @@ open(os.path.join(SCENE_DIR, "blocks.xml"), "w").write(xml)
 json.dump({"size": size.tolist(), "n": N_BLOCKS}, open(os.path.join(HERE, "block_dims.json"), "w"))
 print("wrote blocks.xml and block_dims.json")
 
+if not os.path.exists(SCENE):
+    from make_scene import build_scene
+    build_scene()
+    print("Refreshed the primary row scene from the measured block dimensions.")
+    raise SystemExit(0)
 txt = open(SCENE).read()
 if "blocks.xml" not in txt:
     open(SCENE + ".bak", "w").write(txt)

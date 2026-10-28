@@ -1,5 +1,6 @@
 import numpy as np, mujoco
-model = mujoco.MjModel.from_xml_path("SO-ARM100/Simulation/SO101/stack_scene.xml")
+from env import load_model
+model = load_model()
 data = mujoco.MjData(model)
 adr = lambda n: int(model.jnt_qposadr[model.joint(n).id])
 rng = lambda n: model.jnt_range[model.joint(n).id]

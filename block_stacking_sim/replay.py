@@ -2,11 +2,17 @@ import time
 import numpy as np
 import mujoco
 import mujoco.viewer
+from pathlib import Path
 from env import load_model
 
 m = load_model()
 d = mujoco.MjData(m)
-frames = np.load("stack_run.npy")
+here = Path(__file__).resolve().parent
+recording = here/"results/stack_run.npy"
+if not recording.is_file():recording = here/"stack_run.npy"  # Historical recording bundled with the project.
+frames = np.load(recording)
+if frames.ndim!=2 or frames.shape[1]!=m.nq:
+    raise SystemExit("Recording does not match this scene; create one with run_simulation.py --stack first")
 print(f"opening the MuJoCo window: {len(frames)} frames ({len(frames) / 30:.0f} s). Close the window to exit.")
 
 viewer = mujoco.viewer.launch_passive(m, d)

@@ -5,3 +5,5 @@ __pycache__/
 *.gif
 setup_output.txt
 SO-ARM100/
+generated/
+results/

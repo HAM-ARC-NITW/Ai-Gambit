@@ -1,5 +1,8 @@
 # Ai-Gambit: robotic chess in MuJoCo
 
+The [block-stacking run guide](block_stacking_sim/README.md) covers its Windows
+launcher, camera/physics checks and the separate ROS perception runner in WSL.
+
 Connect 4 has a separate [perception simulation and run guide](connect_4_perception/README.md),
 with a front RGB camera, visual fault scenarios, verified virtual drops and tested
 ROS 2 Humble perception transport. Connect 4 arm motion remains pending. The
