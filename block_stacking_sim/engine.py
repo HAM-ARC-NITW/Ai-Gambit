@@ -6,6 +6,7 @@ from vision import TopCamera, detect
 # (hover height, allowed lean in degrees): tried in order when getting above a block
 HOVERS = ((0.07, 40), (0.055, 55), (0.045, 70))
 PLACE_TILTS = (60, 75, 90)   # leans tried, in order, when carrying to the tower
+PLACE_CLEARANCE = 0.03      # One block above the landing pose, rather than 6 cm.
 HELD_MIN = 0.12      # gripper must stay at least this many rad open to count as holding a block
 STACK_TOL = 0.03     # a block this close to the square centre counts as "on the tower"
 MAX_FAILS = 8
@@ -137,12 +138,16 @@ class StackEngine:
         dofs = [self.dadr[n] for n in self.IK]
         down = np.array([0.0, 0.0, -1.0])
         jp, jr = np.zeros((3, m.nv)), np.zeros((3, m.nv))
-        for _ in range(300):
-            mujoco.mj_forward(m, kd)
+        for iteration in range(300):
+            # IK needs transforms/Jacobians, not a contact/dynamics solve for
+            # every trial pose. Keep the real simulation completely separate.
+            mujoco.mj_kinematics(m, kd)
+            mujoco.mj_comPos(m, kd)
+            if iteration%25==0 and getattr(self.env,"on_plan",None):self.env.on_plan()
             a = kd.site_xmat[self.site].reshape(3, 3) @ self.appr
             ep = target - kd.site_xpos[self.site]
             eo = down - a
-            if np.linalg.norm(ep) < 5e-4 and np.linalg.norm(eo) < 0.05:
+            if np.linalg.norm(ep) < 5e-4 and (wo==0 or np.linalg.norm(eo)<0.05):
                 break
             mujoco.mj_jacSite(m, kd, jp, jr, self.site)
             J = np.vstack([jp[:, dofs], wo * (-skew(a) @ jr[:, dofs])])
@@ -153,7 +158,8 @@ class StackEngine:
                 dq *= 0.15 / nrm
             for n, x in zip(self.IK, dq):
                 kd.qpos[self.qadr[n]] = np.clip(kd.qpos[self.qadr[n]] + x, *self.rng[n])
-        mujoco.mj_forward(m, kd)
+        mujoco.mj_kinematics(m, kd)
+        mujoco.mj_comPos(m, kd)
         a = kd.site_xmat[self.site].reshape(3, 3) @ self.appr
         tilt = float(np.degrees(np.arccos(np.clip(-a[2], -1, 1))))
         err = float(np.linalg.norm(target - kd.site_xpos[self.site]))
@@ -161,12 +167,17 @@ class StackEngine:
 
     def _solve(self, target, roll, max_tilt):
         rand = np.random.default_rng(1)
-        tries = [(0.4, None), (0.8, None), (0.15, None)]
-        tries += [(w, rand) for w in (0.8, 0.4) for _ in range(15)]
+        # Position errors are in metres, orientation errors are dimensionless.
+        # The former 0.4/0.8 weights traded centimetres of position error for an
+        # upright wrist, then incorrectly labelled those targets unreachable.
+        # Try upright first, then allow tilt; the explicit max_tilt check below
+        # still rejects a pose outside the requested handling limits.
+        tries = [(w,None) for w in (.15,.02,.005,.001,0.)]
+        tries += [(w,rand) for w in (.02,.001,0.) for _ in range(4)]
         best = None
         for wo, r in tries:
             q, err, tilt = self._ik(target, wo, r, roll)
-            if err < 0.01 and tilt < max_tilt:
+            if err < 0.003 and tilt < max_tilt:
                 return q, err, tilt, True
             if best is None or err < best[1]:
                 best = (q, err, tilt, False)
@@ -247,7 +258,10 @@ class StackEngine:
         img = self.env.get_image("topdown")
         scene = detect(img, self.cam)
         from PIL import Image
-        Image.fromarray(img).save("camera_last.png")
+        from pathlib import Path
+        output = Path(__file__).resolve().parent/"results"
+        output.mkdir(exist_ok=True)
+        Image.fromarray(img).save(output/"camera_last.png")
         print("   camera sees:", [(b["color"], tuple(np.round(b["xy"], 3))) for b in scene["blocks"]])
         return scene
 
@@ -272,7 +286,7 @@ class StackEngine:
         for lv in range(n):
             z = self.tower_z(lv, dzh)
             ok = all(any(self._solve(np.array([*self.sq_xy, zz]), 0.0, t)[3] for t in PLACE_TILTS)
-                     for zz in (z, z + 0.06))
+                     for zz in (z, z + PLACE_CLEARANCE))
             print(f"   level {lv + 1}: {'reachable' if ok else 'NOT REACHABLE'}")
             if not ok:
                 bad.append(lv + 1)
@@ -327,7 +341,7 @@ class StackEngine:
         """Carry to the tower and put the block on top. Never lets go unless it is over the tower."""
         z = self.tower_z(level, dzh)
         print(f"   carrying to tower level {level + 1}")
-        if not self.move_gap_any(self.sq_xy, z + 0.06, 0.0, 2.5, PLACE_TILTS, True):
+        if not self.move_gap_any(self.sq_xy, z + PLACE_CLEARANCE, 0.0, 2.5, PLACE_TILTS, True):
             return False
         if self.opening() <= HELD_MIN:
             print("   the block was dropped during the carry")
@@ -347,6 +361,7 @@ class StackEngine:
         self.sq_xy = scene["square"]["xy"]
         total = len(scene["blocks"])
         print(f"camera sees {total} blocks; white square at {np.round(self.sq_xy, 3)}")
+        print("Checking tower reach (the viewer remains responsive)...",flush=True)
         self.check_tower(total)
         fails = 0
         unreachable = []                     # blocks the arm could not get over (positions)
@@ -354,7 +369,8 @@ class StackEngine:
             loose = self.loose(scene)
             print(f"\ntower height {self.stacked}, {len(loose)} blocks still loose")
             if not loose:
-                print("ALL DETECTED BLOCKS ARE ON THE TOWER")
+                print("No loose blocks visible. Camera transfer estimate:",self.stacked,
+                      "(this does not prove a stable tower).")
                 break
             if fails >= MAX_FAILS:
                 print(f"Stopping: {fails} failed grasps in a row.")

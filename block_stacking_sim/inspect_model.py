@@ -1,5 +1,6 @@
 import mujoco, sys
-m = mujoco.MjModel.from_xml_path(sys.argv[1])
+from env import load_model
+m = mujoco.MjModel.from_xml_path(sys.argv[1]) if len(sys.argv)>1 else load_model()
 print("JOINTS")
 for i in range(m.njnt):
     print(" ", i, m.joint(i).name, m.jnt_range[i])

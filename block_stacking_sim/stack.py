@@ -1,7 +1,9 @@
 import time, numpy as np, mujoco, mujoco.viewer, imageio
 
-ARM_DIR = "SO-ARM100/Simulation/SO101"
-ARM_XML = "so101_new_calib.xml"
+from make_scene import HERE,ROBOT
+ARM_DIR = str(HERE/"generated")
+(HERE/"generated").mkdir(exist_ok=True)
+ARM_XML = ROBOT.as_posix()
 TOWER = (0.18, -0.16)          # fallback only; the real tower position is perceived
 CUBE = 0.03
 CUBES = {"cube1": "red", "cube2": "green", "cube3": "blue", "cube4": "purple"}
@@ -17,6 +19,7 @@ bodies = "".join(
 SCENE = f"""
 <mujoco model="stack_world">
   <include file="{ARM_XML}"/>
+  <compiler meshdir="{(ROBOT.parent/'assets').as_posix()}"/>
   <option timestep="0.002"/>
   <visual>
     <global offwidth="640" offheight="480"/>
@@ -36,7 +39,7 @@ SCENE = f"""
   </worldbody>
 </mujoco>
 """
-scene_path = f"{ARM_DIR}/stack_scene.xml"
+scene_path = f"{ARM_DIR}/legacy_stack_scene.xml"
 open(scene_path, "w").write(SCENE)
 model = mujoco.MjModel.from_xml_path(scene_path)
 data = mujoco.MjData(model)

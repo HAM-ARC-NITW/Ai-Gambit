@@ -1,29 +1,10 @@
-import os, glob
 import numpy as np
 import mujoco
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-SO101 = os.path.join(HERE, "SO-ARM100", "Simulation", "SO101")
+from env import load_model,SCENE
 
 print("mujoco version:", mujoco.__version__)
-print("looking in:", SO101)
-if not os.path.isdir(SO101):
-    raise SystemExit("Folder not found. Is check_setup.py in the same folder as SO-ARM100?")
-
-print("\nXML files found:")
-for f in sorted(glob.glob(os.path.join(SO101, "*.xml"))):
-    print("   ", os.path.basename(f))
-
-path = None
-for name in ["so101_new_calib.xml", "scene.xml", "stack_scene.xml"]:
-    if os.path.exists(os.path.join(SO101, name)):
-        path = os.path.join(SO101, name)
-        break
-if path is None:
-    raise SystemExit("Could not find a robot XML file. Send me the list printed above.")
-
-print("\nLoading", os.path.basename(path))
-model = mujoco.MjModel.from_xml_path(path)
+print("Generated scene:",SCENE)
+model = load_model()
 data = mujoco.MjData(model)
 mujoco.mj_forward(model, data)
 

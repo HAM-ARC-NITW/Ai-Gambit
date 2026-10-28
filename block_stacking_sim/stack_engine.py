@@ -8,13 +8,17 @@ PERCEPTION_PACKAGE = os.path.join(
     "perception_ws", "src", "ai_gambit_perception")
 if PERCEPTION_PACKAGE not in sys.path:
     sys.path.insert(0, PERCEPTION_PACKAGE)
-from ai_gambit_perception.perception_node import AiGambitPerceptionNode
-import rclpy
+try:
+    import rclpy
+    from ai_gambit_perception.perception_node import AiGambitPerceptionNode
+except ModuleNotFoundError as error:
+    raise SystemExit("ROS dependencies unavailable ("+str(error)+"). Use WSL: bash ros_tools/run_block_stacking.sh; "
+                     "or run run_simulation.cmd --stack for the native RGB runner.") from None
 
 from perception import BH, BW, BD
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCENE = os.path.join(HERE, "SO-ARM100", "Simulation", "SO101", "stack_scene.xml")
+from make_scene import build_scene
 JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
 IK_JOINTS = JOINTS[:4]
 N_BLOCKS = 4
@@ -34,7 +38,8 @@ def wrap90(x):
 
 class Sim:
     def __init__(self, headless, video):
-        self.m = mujoco.MjModel.from_xml_path(SCENE)
+        self.m = mujoco.MjModel.from_xml_path(str(build_scene()))
+        self.deadline = float("inf")
         self.d = mujoco.MjData(self.m)
         mujoco.mj_forward(self.m, self.d)
         self.viewer = None
@@ -50,6 +55,7 @@ class Sim:
 
     def step(self, n=1):
         for _ in range(n):
+            if time.monotonic()>self.deadline:raise KeyboardInterrupt
             mujoco.mj_step(self.m, self.d)
             self.k += 1
             if self.k % self.every == 0:
@@ -61,6 +67,13 @@ class Sim:
                 if self.rend is not None:
                     self.rend.update_scene(self.d, camera=self.vcam)
                     self.frames.append(self.rend.render().copy())
+
+    def planning_update(self):
+        """Keep the viewer and cancellation alive during kinematic searches."""
+        if time.monotonic()>self.deadline:raise KeyboardInterrupt
+        if self.viewer is not None:
+            if not self.viewer.is_running():raise KeyboardInterrupt
+            self.viewer.sync()
 
     def seconds(self, s):
         self.step(int(s / self.m.opt.timestep))
@@ -105,6 +118,7 @@ class PerceptionNodeAdapter:
         return detections
 
     def close(self):
+        self.renderer.close()
         self.node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
@@ -314,8 +328,10 @@ class Arm:
         dofs = [self.da[n] for n in IK_JOINTS]
         down = np.array([0.0, 0.0, -1.0])
         jp, jr = np.zeros((3, m.nv)), np.zeros((3, m.nv))
-        for _ in range(300):
-            mujoco.mj_forward(m, d)
+        for iteration in range(300):
+            mujoco.mj_kinematics(m,d)
+            mujoco.mj_comPos(m,d)
+            if iteration%25==0:self.s.planning_update()
             a = d.site_xmat[self.site].reshape(3, 3) @ self.appr
             ep = target - d.site_xpos[self.site]
             eo = down - a
@@ -330,7 +346,9 @@ class Arm:
                 dq *= 0.15 / nrm
             for n, x in zip(IK_JOINTS, dq):
                 d.qpos[self.qa[n]] = np.clip(d.qpos[self.qa[n]] + x, *self.rg[n])
-        return {n: float(d.qpos[self.qa[n]]) for n in IK_JOINTS}, float(np.linalg.norm(ep))
+        # The final joint update must be forwarded before measuring its error.
+        mujoco.mj_kinematics(m,d)
+        return {n: float(d.qpos[self.qa[n]]) for n in IK_JOINTS}, float(np.linalg.norm(target-d.site_xpos[self.site]))
 
     def _pose(self, q, roll):
         m = self.s.m
@@ -350,13 +368,13 @@ class Arm:
     def _solve(self, tgt, roll, max_tilt=None):
         max_tilt = MAX_TILT if max_tilt is None else max_tilt
         rand = np.random.default_rng(1)
-        tries = [(0.4, None), (0.8, None), (0.15, None)]
-        tries += [(wo, rand) for wo in (0.8, 0.4) for _ in range(15)]
+        tries = [(w,None) for w in (.15,.02,.005,.001,0.)]
+        tries += [(w,rand) for w in (.02,.001,0.) for _ in range(4)]
         best = None
         for wo, r in tries:
             q, err = self.ik(tgt, wo, r, roll)
             tl = self._tilt(q, roll)
-            if err < 0.01 and tl < max_tilt:
+            if err < 0.003 and tl < max_tilt:
                 return q, err, tl, True
             if best is None or err < best[1]:
                 best = (q, err, tl, False)
@@ -585,9 +603,25 @@ def main():
     ap.add_argument("--headless", action="store_true", help="no window")
     ap.add_argument("--video", default=None, help="save mp4, e.g. run.mp4")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--check",action="store_true",help="Check the ROS camera adapter on the row scene, then exit")
+    ap.add_argument("--seconds",type=float,help="Bound the simulation by wall-clock time")
     args = ap.parse_args()
+    if args.seconds is not None and (not np.isfinite(args.seconds) or args.seconds<=0):
+        ap.error("--seconds must be finite and positive")
 
     sim = Sim(args.headless, args.video)
+    if args.check:
+        camera = PerceptionNodeAdapter(sim.m)
+        try:
+            sim.d.qpos[int(sim.m.jnt_qposadr[sim.m.joint("shoulder_pan").id])] = -1.5
+            detections = camera.detect(sim.d)
+            print("ROS camera adapter detected",len(detections),"blocks:",
+                  [np.round(b["xy"],3).tolist() for b in detections],flush=True)
+            if len(detections)!=N_BLOCKS:raise SystemExit("ROS camera count check failed")
+        finally:
+            camera.close()
+            if sim.viewer is not None:sim.viewer.close()
+        return
     arm = Arm(sim)
     centre = arm.zone_centre()
     target_xy, pad_h = find_target(sim.m, sim.d, arm)
@@ -649,6 +683,7 @@ def main():
                 return
         fails.append([xy.copy(), 1])
 
+    if args.seconds is not None:sim.deadline=time.monotonic()+args.seconds
     try:
         print("Perceiving...")
         for step in range(6 * N_BLOCKS):
@@ -679,8 +714,12 @@ def main():
             print("Close the viewer window to exit.")
             while True:
                 sim.step(5)
+    except KeyboardInterrupt:
+        print("Simulation stopped.")
     finally:
         cam.close()
+        if sim.viewer is not None:sim.viewer.close()
+        if sim.rend is not None:sim.rend.close()
         if sim.frames:
             import imageio
             imageio.mimsave(args.video, sim.frames, fps=30)
