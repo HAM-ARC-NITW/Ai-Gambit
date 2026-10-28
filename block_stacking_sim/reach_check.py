@@ -1,6 +1,6 @@
 import numpy as np
 from env import RowEnv
-from engine import StackEngine, PLACE_TILTS
+from engine import StackEngine, PLACE_TILTS, PLACE_CLEARANCE
 
 env = RowEnv(render=False)
 eng = StackEngine(env)
@@ -12,15 +12,8 @@ ROW_X = 0.19
 def reachable(x, y):
     for lv in (0, 3):                                    # lowest and highest tower level
         z = eng.sq_top + bh * (lv + 0.5) + 0.002 + dzh
-        for zz in (z, z + 0.06):
-            ok = False
-            for tilt in (PLACE_TILTS[-1],):
-                for wo in (0.4, 0.8):
-                    _, err, tl = eng._ik(np.array([x, y, zz]), wo, None, 0.0)
-                    if err < 0.01 and tl < tilt:
-                        ok = True
-                        break
-            if not ok:
+        for zz in (z, z + PLACE_CLEARANCE):
+            if not eng._solve(np.array([x,y,zz]),0.,PLACE_TILTS[-1])[3]:
                 return False
     return True
 

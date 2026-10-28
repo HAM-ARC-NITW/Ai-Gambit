@@ -1,5 +1,6 @@
 import mujoco, numpy as np
-m = mujoco.MjModel.from_xml_path("SO-ARM100/Simulation/SO101/stack_scene.xml")
+from env import load_model
+m = load_model()
 d = mujoco.MjData(m)
 mujoco.mj_forward(m, d)
 np.set_printoptions(precision=3, suppress=True)

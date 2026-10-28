@@ -1,4 +1,5 @@
 import numpy as np, os
+from pathlib import Path
 SIZE_MM = 30.0
 h = SIZE_MM / 2
 V = np.array([[x, y, z] for x in (-h, h) for y in (-h, h) for z in (-h, h)], dtype=np.float32)
@@ -15,5 +16,7 @@ for a, b, c in tris:
         n = -n
     n = n / np.linalg.norm(n)
     out += n.astype("<f4").tobytes() + p.astype("<f4").tobytes() + q.astype("<f4").tobytes() + r.astype("<f4").tobytes() + b"\x00\x00"
-open(os.path.join("meshes", "block1.stl"), "wb").write(out)
+mesh_dir = Path(__file__).resolve().parent/"meshes"
+mesh_dir.mkdir(exist_ok=True)
+(mesh_dir/"block1.stl").write_bytes(out)
 print("wrote meshes/block1.stl,", SIZE_MM, "mm cube")
