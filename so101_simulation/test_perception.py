@@ -160,6 +160,15 @@ def test_knight_overhang_belongs_to_its_own_square(sim):
     assert obs.status == "READY" and obs.occupancy == occupancy(board)
 
 
+def test_touching_neighbours_are_split(sim):
+    # A knight on e2 and the king on e1 touch through a thin neck in perspective.
+    # As one oversized blob they made both squares UNKNOWN after the arm's Nge2.
+    board = chess.Board("rnbqkb1r/pppp1ppp/5n2/4p3/4P3/2N5/PPPPNPPP/R1BQKB1R b KQkq - 3 3")
+    sim.load_position(board)
+    obs = sim.snapshot()
+    assert obs.status == "READY" and obs.occupancy == occupancy(board)
+
+
 def test_stable_frames_are_required(sim):
     sim.load_position(chess.Board())
     sim.detector.previous,sim.detector.stable_count = None,0

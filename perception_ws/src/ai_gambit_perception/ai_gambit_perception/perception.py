@@ -179,11 +179,36 @@ class Perception:
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
         return mask, normalized
 
+    @staticmethod
+    def _split_necks(mask, max_area):
+        """In perspective two tall neighbours (a knight on e2 before the king on
+        e1) can touch through a thin neck and read as one oversized blob. Cut the
+        neck only when that leaves two or more piece-sized parts and removes
+        little else; a hand or arm loses most of its area and stays oversized.
+        """
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (23, 23))
+        out = mask.copy()
+        for i in range(1, count):
+            area = stats[i, cv2.CC_STAT_AREA]
+            if not max_area < area <= 2*max_area:
+                continue
+            blob = (labels == i).astype(np.uint8)
+            opened = cv2.morphologyEx(blob, cv2.MORPH_OPEN, kernel)
+            n, _, parts, _ = cv2.connectedComponentsWithStats(opened, 8)
+            sizes = parts[1:, cv2.CC_STAT_AREA]
+            if n > 2 and np.all(sizes > 280) and sizes.max() <= max_area and sizes.sum() >= .85*area:
+                out[blob > 0] = 0
+                out[opened > 0] = 1
+        return out
+
     def _occupancy(self, mask, centers, radius, max_area, linked_slots=False):
         """A piece must have a compact foreground component near its slot centre.
         Large components (hand/arm), boundary pieces and uncertain shapes stay UNKNOWN.
         This is a controlled-workspace heuristic, not a general object classifier.
         """
+        if not linked_slots:
+            mask = self._split_necks(mask, max_area)
         count, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 8)
         values, confidence, offsets = [], [], []
         grid = np.asarray(centers, float)
