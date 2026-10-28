@@ -1,0 +1,9 @@
+# Real arm (play_real.py, real_setup.py): install into the conda environment that
+# already has LeRobot (python -m pip install lerobot, Python 3.12+), AFTER removing
+# LeRobot's window-less OpenCV:  python -m pip uninstall -y opencv-python-headless
+mujoco>=3.2,<4
+python-chess>=1.999
+glfw>=2.7
+pytest>=8
+# Same cv2 as LeRobot's opencv-python-headless pin (<4.14), but able to open windows.
+opencv-python>=4.9,<4.14

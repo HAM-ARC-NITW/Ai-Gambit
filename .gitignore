@@ -10,6 +10,8 @@ so101_simulation/perception_results/
 so101_simulation/perception_results_check/
 so101_simulation/perception_results_tuning/
 so101_simulation/perception_assets/
+so101_simulation/real_setup.json
+so101_simulation/real_empty_reference.png
 perception_ws/build/
 perception_ws/install/
 perception_ws/log/

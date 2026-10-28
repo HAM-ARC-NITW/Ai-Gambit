@@ -32,6 +32,7 @@ class MotionPlanner:
         # Physics still runs at 500 Hz; the display only needs 60 updates/second.
         self.viewer_fps = 60
         self.viewer_callback = None  # Optional camera UI update, once per display frame.
+        self.arm = None  # Optional real arm (lerobot_arm.LeRobotArm) mirroring every commanded pose.
 
     def plan_pick_and_place_waypoints(self,
                                       pick_pos: np.ndarray,
@@ -120,6 +121,8 @@ class MotionPlanner:
         dt = self.model.opt.timestep
         if speed_factor <= 0:
             raise ValueError("speed_factor must be greater than zero")
+        if self.arm is not None:
+            steps = self.arm.steps_for(q_start, q_end, steps)
         frame_steps = max(1, round(speed_factor / (self.viewer_fps * dt)))
         start_time = time.perf_counter()
         
@@ -129,7 +132,9 @@ class MotionPlanner:
             
             # Send control signal to actuators
             self.data.ctrl[:6] = q_des
-            
+            if self.arm is not None:
+                self.arm.follow(q_des, final=s == steps - 1)
+
             # If carrying a piece, rigidly lock it to pinch site
             if self.carrying_piece_id is not None:
                 jnt_adr = self.model.body(self.carrying_piece_id).jntadr[0]
@@ -155,11 +160,18 @@ class MotionPlanner:
                 remaining = start_time + (s + 1) * dt / speed_factor - time.perf_counter()
                 if remaining > 0:
                     time.sleep(remaining)
+        if self.arm is not None:
+            # The real arm was confirmed at q_end. Keep the twin exactly there, so
+            # the next plan starts where the real arm is, not where twin physics sagged.
+            self.data.qpos[:6], self.data.qvel[:6] = q_end, 0.0
+            mujoco.mj_forward(self.model, self.data)
 
     def attach_piece(self, piece_body_id: int):
         """
         Latch a piece to the pinch site for transit.
         """
+        if self.arm is not None:
+            self.arm.confirm_grasp()  # The real jaws must have closed on a piece.
         self.carrying_piece_id = piece_body_id
         jnt_adr = self.model.body(piece_body_id).jntadr[0]
         if jnt_adr >= 0:

@@ -21,10 +21,23 @@ sys.path.insert(0, str(SOURCE))
 from ai_gambit_perception.perception import (  # noqa: E402
     Perception, load_config, camera_calibration, transform, tray_centers, overlay)
 from chess_robot import ChessRobot
-from chess_coords import PARK_POSE, HOME_POSE, PIECE_REST_Z, square_to_pos
+from chess_coords import PARK_POSE, HOME_POSE, PIECE_HEIGHTS, PIECE_REST_Z, square_to_pos
 
 
 BUTTON_POSITION = (.22, -.45, 0)  # Outside the overhead camera's view and the arm's path.
+# Seen from above, a piece's silhouette centre lies at about this fraction of its
+# height. Measured in simulation (0.6 halved the worst grasp-aim error, from
+# 6.7 to 2.6 mm on a knight); recheck with real pieces.
+SILHOUETTE_HEIGHT = 0.6
+
+
+def under_camera(point, height, camera):
+    """A silhouette centred `height` above the board appears pushed away from the
+    camera's nadir. Return the board point under the piece instead."""
+    span = camera[2] - point[2]
+    corrected = np.asarray(point, float).copy()
+    corrected[:2] = camera[:2] + (corrected[:2] - camera[:2]) * (span - height) / span
+    return corrected
 
 
 def make_workspace(button=False):
@@ -294,7 +307,11 @@ class Simulation:
         if observation is not None:
             # Identities come from the coordinator's inventory; grasp positions
             # come from camera geometry, not simulator body coordinates.
-            sources = {body:board_target(square,True) for square,body in mapping.items()}
+            camera = self.detector.base_camera[:3, 3]
+            sources = {body: under_camera(board_target(square, True),
+                                          SILHOUETTE_HEIGHT * PIECE_HEIGHTS[chess.piece_name(board.piece_at(square).piece_type)],
+                                          camera)
+                       for square, body in mapping.items()}
         operations = []
         piece = board.piece_at(move.from_square)
         if piece is None:

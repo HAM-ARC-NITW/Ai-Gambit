@@ -29,6 +29,7 @@ ros2_control.
 - [Linux setup](#linux-setup)
 - [Run the different modes](#run-the-different-modes)
 - [Play against the arm](#play-against-the-arm)
+- [Real arm with LeRobot](#real-arm-with-lerobot)
 - [How the current system fits together](#how-the-current-system-fits-together)
 - [Simulation and movement](#simulation-and-movement)
 - [How perception works](#how-perception-works)
@@ -58,7 +59,7 @@ build commands, interface definitions and real-camera calibration instructions.
 | ROS perception transport | Image/CameraInfo subscriptions, typed observations, services, watchdog and TF2 | Code prepared; ROS build/runtime validation pending |
 | ROS movement and game orchestration | ROS actions/nodes connecting coordinator, controller and simulation | **Pending** |
 | MoveIt 2 / ros2_control | Planning scene, trajectory execution and hardware interfaces | **Pending** |
-| Real robot and camera | Measured calibration, realistic grasp validation and hardware execution | Pending |
+| Real robot and camera | LeRobot SO-101 driver, real-camera calibration steps and a hardware-free rehearsal ([Real arm with LeRobot](#real-arm-with-lerobot)) | Tested against a LeRobot stand-in; **not yet run on hardware** |
 
 ## Windows setup
 
@@ -354,6 +355,146 @@ chosen by Stockfish. `--think-time` defaults to 0.5 seconds, `--skill` to 10
 adjusts animated playback pacing. `--exit-after-demo` closes a completed visual
 replay and is useful for GUI smoke checks. `--fps` and `--low-graphics` are options
 of the motion demo, not options of `play_chess.py`.
+
+## Real arm with LeRobot
+
+**Status: written and tested against a LeRobot stand-in; not yet run on a real
+SO-101.** Expect to tune calibration values on the first hardware session.
+
+[play_real.py](so101_simulation/play_real.py) plays the same game as
+`play_game.py`, but the arm and the overhead camera are real, both driven through
+[LeRobot](https://github.com/huggingface/lerobot) (`SO101Follower` with an
+`OpenCVCamera`). You move the physical pieces yourself and click DONE; the camera
+alone works out your move.
+
+**How it works.** The MuJoCo arm stays the planner (a "digital twin"): the same
+IK, waypoints and collision rules as in simulation. Every pose the twin is
+commanded is converted to LeRobot units (degrees, gripper 0–100 %) and streamed
+to the real arm, slowed down 4× (`slowdown`). Grasp targets come from the real
+camera, corrected for perspective. Safety checks in
+[lerobot_arm.py](so101_simulation/lerobot_arm.py), each of which stops the move
+and pauses the game:
+
+| Check | What it prevents |
+| --- | --- |
+| Joint limits | A pose outside the model's joint ranges is never sent |
+| Jump limit (`max_step_deg`, 8°) | A plan that does not start where the real arm is |
+| Speed limit (`max_speed_deg_s`, 60°/s) | Segments are stretched so no joint whips between waypoints |
+| Arrival (`arrive_tol_deg`, 4°) | Every segment must physically arrive before the next starts |
+| Grasp sensing (`grasp_margin_pct`) | Closing the jaws on nothing (a missed piece) |
+| Retreat | After a stopped move the arm lifts straight up, then parks |
+| No teleporting | Instant (unanimated) arm moves are refused |
+
+After the program ends the motors keep holding the parked pose (torque is not
+released, so the arm cannot fall onto the board). Support the arm and switch off
+its power to release it.
+
+### What you need
+
+- An SO-101 follower arm, already calibrated with `lerobot-calibrate`.
+- A USB camera about 80 cm above the board centre, looking straight down
+  (the simulated camera is 82 cm above the arm base, 27 cm in front of it).
+- A 24 cm board (3 cm squares). Pieces about the size of the simulated ones
+  (bases 18–19 mm, 28–45 mm tall) so the jaws can grip them.
+- Twelve printed AprilTags (family 36h11, ids 0–11): 26 mm black square plus a
+  white margin, 32.5 mm in total. The simulator writes them as
+  `so101_simulation/perception_assets/tag_<id>.png` the first time it runs (that
+  folder is not in git; any simulated game creates it, for example
+  `python play_real.py --rehearsal --headless`). Print them at 32.5 mm wide.
+- A printed checkerboard for the lens calibration (default: 9×6 inner corners,
+  25 mm squares, i.e. 10×7 squares).
+
+**Layout.** Rank 1 is nearest the arm and the a-file is on the arm's left, seen
+from behind it. The board's centre is 21.1 cm in front of the shoulder-pan axis,
+on the arm's centre line, with the board top 1 cm above the surface the arm
+stands on. Tag centres, in cm from the board's a1 corner (+x towards the
+h-file, +y towards rank 8):
+
+| Fixture | Tag: (x, y) cm |
+| --- | --- |
+| Board | 0: (−2.5, −2.5) · 1: (26.5, −2.5) · 2: (36.0, 26.5) · 3: (−12.0, 26.5) |
+| Capture trays (both sides of the board) | 8: (−13.5, 0.5) · 9: (37.5, 0.5) · 10: (−13.5, 23.5) · 11: (37.5, 23.5) |
+| Promotion rack (beyond rank 8) | 4: (−5.5, 25.0) · 5: (29.5, 25.0) · 6: (29.5, 32.0) · 7: (−5.5, 32.0) |
+
+The positions come from
+[workspace.json](perception_ws/src/ai_gambit_perception/ai_gambit_perception/workspace.json).
+Spare pieces for promotions go in the rack's slots (two rows of 16, 2 cm apart,
+white row first). The game uses whichever spares the camera sees at the start.
+
+### Install (once)
+
+LeRobot needs Python 3.12+ and PyTorch. Use the conda environment LeRobot is
+installed in, not the simulation `.venv`. LeRobot ships an OpenCV that cannot
+open windows, so swap it for the normal one first:
+
+```powershell
+conda activate lerobot
+cd Ai-Gambit
+python -m pip uninstall -y opencv-python-headless
+python -m pip install -r so101_simulation/requirements-lerobot.txt
+```
+
+Stockfish is found the same way as for the simulated game (see the setup
+sections above).
+
+### Rehearse without hardware
+
+`--rehearsal` runs the whole real-arm program against a stand-in robot with
+LeRobot's SO-101 interface. A second MuJoCo world plays the physical table, and
+you move its pieces by clicking, as in the simulated game. A piece only moves if
+the jaws really close around it, so wrong units or aim make the arm miss.
+
+```powershell
+cd so101_simulation
+python play_real.py --rehearsal              # windows; real-time arm speed
+python play_real.py --rehearsal --headless   # scripted game, no windows
+python -m pytest test_lerobot.py -q          # conversion, safety and miss tests
+```
+
+### Set up the real arm (once per setup)
+
+Run these from `so101_simulation` in the `lerobot` environment. Each step saves
+its result in `real_setup.json`; the empty-board photo is saved as
+`real_empty_reference.png`. Both are per machine and not committed.
+
+| Step | Command | What to do |
+| --- | --- | --- |
+| 1. Find the port | `lerobot-find-port` | Note the arm's port, e.g. `COM5` or `/dev/ttyACM0` |
+| 2. LeRobot calibration | `lerobot-calibrate --robot.type=so101_follower --robot.port=COM5 --robot.id=chess_arm` | Skip if already done with this id |
+| 3. Create the settings | `python real_setup.py init --port COM5 --robot-id chess_arm --camera 0` | `lerobot-find-cameras opencv` lists camera indexes and saves a test photo from each |
+| 4. Joints and tags | `python real_setup.py check` | The motors are released. Move each joint by hand; the **Twin** window must move the same way. If a joint turns the opposite way, set its entry in `arm.sign` to -1; if it is off by a constant angle, set `arm.offset_deg`. The camera window lists the tags it sees |
+| 5. Gripper | `python real_setup.py gripper` | Closes on nothing, then on a pawn you hold between the jaws. The pawn must stop the jaws clearly above the command |
+| 6. Lens | `python real_setup.py intrinsics` | Hold the checkerboard at 12+ angles and distances; Space keeps a view, C calibrates. Aim for under 1 px |
+| 7. Camera position | `python real_setup.py extrinsics` | Board and tags at their marked places; Space measures. Check that the printed camera position is plausible |
+| 8. Empty photo | `python real_setup.py empty` | The arm parks first. Remove every piece and keep hands out of view |
+| 9. Aim | `python real_setup.py hover` | The jaws stop 6 cm above a1, h1, h8 and a8. If they are off-centre, move the board (not the arm), then repeat steps 7–9 |
+
+Re-run steps 7–9 whenever the camera or board moves.
+
+### Play
+
+```powershell
+python play_real.py                 # the arm plays White and moves first
+python play_real.py --human white   # you move first
+python play_real.py --slowdown 8    # slower arm, recommended for the first games
+```
+
+Set up the pieces in the starting position (and any spares in the rack) before
+starting. Keep hands clear while the arm moves. When it is your turn, move the
+real pieces, then click DONE or press Space. If the camera cannot tell two
+captures apart it asks you to press a number. If the game pauses, put the pieces
+back as in the confirmed position and press L. Esc quits; the arm parks first.
+
+### Real-arm troubleshooting
+
+| Message | Check |
+| --- | --- |
+| `real_setup.json is missing` / `lacks ...` | Run the setup steps above in order |
+| `Refused: ... degree jump` | The arm was moved by hand or a joint sign/offset is wrong: re-run `check` |
+| `Arm did not reach its target` | Something blocks the arm, the power supply is weak, or the calibration is off |
+| `Gripper closed on nothing` | Aim is off (run `hover`), or the gripper cannot sense pieces (run `gripper`) |
+| `Board read failed` | Lighting changed or the board moved since `empty`/`extrinsics`: re-run steps 7–8 |
+| No windows open | You are in an environment with `opencv-python-headless`; see Install |
 
 ## How the current system fits together
 
@@ -847,6 +988,9 @@ integrated ROS-controlled chess game.
   fixed-fixture V1 requires deliberate validation/recalibration before resuming.
 - **Grasping:** pieces are carried kinematically and placement is imposed in the
   simulator. Real contact, slip, grasp force and release reliability are unvalidated.
+- **Real arm:** the LeRobot path is tested only against a stand-in (kinematic
+  table, ideal camera). Motor lag, real grasps, lighting and camera noise are
+  untested until the first hardware session.
 - **Collision planning:** clearance waypoints and contact isolation do not replace
   full-arm collision-aware planning. A MoveIt planning scene has not been connected.
 - **Obstructions:** the detector is heuristic and tested against specified cases.
@@ -874,6 +1018,12 @@ integrated ROS-controlled chess game.
 | [so101_simulation/virtual_hand.py](so101_simulation/virtual_hand.py) | The player's simulated hand: pick, place, capture to tray, undo |
 | [so101_simulation/test_game_loop.py](so101_simulation/test_game_loop.py) | Camera-only human move inference and full turn-loop tests |
 | [so101_simulation/play_chess.py](so101_simulation/play_chess.py) | Human UI, opponent turns and camera-verified game loop |
+| [so101_simulation/play_real.py](so101_simulation/play_real.py) | The game with the real arm and camera through LeRobot, or `--rehearsal` without hardware |
+| [so101_simulation/lerobot_arm.py](so101_simulation/lerobot_arm.py) | Twin-to-LeRobot units, real-time streaming and the arm safety checks |
+| [so101_simulation/real_workspace.py](so101_simulation/real_workspace.py) | Real camera frames and measured calibration behind the simulation interface |
+| [so101_simulation/real_setup.py](so101_simulation/real_setup.py) | One-time joint, gripper, lens, camera-position, empty-photo and aim steps |
+| [so101_simulation/lerobot_standin.py](so101_simulation/lerobot_standin.py) | Hardware-free stand-in with LeRobot's SO-101 interface |
+| [so101_simulation/test_lerobot.py](so101_simulation/test_lerobot.py) | Real-arm path tests: units, safety refusals, pacing, misses, camera pose |
 | [so101_simulation/run_perception.py](so101_simulation/run_perception.py) | 56 named experiments, independent board scoring and HTML/JSON output |
 | [so101_simulation/test_perception.py](so101_simulation/test_perception.py) | Perception/coordinator contracts and rendered geometry tests |
 | [so101_simulation/test_system.py](so101_simulation/test_system.py) | Original motion/stability tests |

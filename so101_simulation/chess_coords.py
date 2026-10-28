@@ -39,6 +39,16 @@ PIECE_REST_Z = {
     'king': 0.0325,
 }
 
+# Full piece heights (collision cylinders), used to undo camera perspective
+PIECE_HEIGHTS = {
+    'pawn': 0.028,
+    'rook': 0.028,
+    'knight': 0.036,
+    'bishop': 0.036,
+    'queen': 0.042,
+    'king': 0.045,
+}
+
 CLEARANCE_HEIGHT_Z = 0.130  # 13 cm clearance while moving pieces over the board
 HOME_POSE = np.array([0.0, -0.6, 1.2, -0.6, 0.0, 1.2])
 PARK_POSE = np.array([-1.4, -0.8, 1.2, -0.4, 0.0, 0.0])  # Swung clear of overhead camera
