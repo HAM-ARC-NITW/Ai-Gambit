@@ -89,53 +89,104 @@ not require ROS or an internet connection after dependencies and engine setup.
 
 ## Linux setup
 
-Tested on Ubuntu 26.04 (Python 3.14) under WSL 2 with WSLg; other recent
-Ubuntu/Debian releases need the same packages. Run everything from the
-repository root.
+Everything needed to install and play the chess game on a Linux laptop, from
+nothing.
 
-**1. System packages** (one time):
+**You need:** Ubuntu 22.04 or newer (or Debian 12+), Python 3.10 or newer (the
+system Python on those releases), a desktop session, a graphics driver with
+OpenGL (any normal laptop; a virtual machine needs 3D acceleration enabled),
+about 1 GB of disk space, and internet access during setup. Tested on Ubuntu
+26.04 with Python 3.14 under WSL 2 (WSLg); not yet tested on other releases.
+
+**1. Install system packages** (one time):
 
 ```bash
 sudo apt update
-sudo apt install python3-venv stockfish libsm6 libice6 libgl1 libegl1
+sudo apt install git python3-venv stockfish libsm6 libice6 libgl1 libegl1
 ```
 
-`libsm6` and `libice6` are needed by OpenCV's game windows; without them the
-game stops with `Could not load the Qt platform plugin "xcb"`. If you cannot use
-`sudo` for Stockfish, leave it out and run `bash engine_stuff/install_stockfish.sh`,
-which downloads the official Stockfish 19 into `engine_stuff/bin` and checks its
-SHA-256. The game finds either one automatically.
+| Package | Why |
+| --- | --- |
+| `git` | Downloads the project |
+| `python3-venv` | Creates the project's private Python environment |
+| `stockfish` | The chess engine the arm plays with |
+| `libsm6`, `libice6` | Needed by the game windows (OpenCV) |
+| `libgl1`, `libegl1` | OpenGL for the 3D simulation; usually already installed |
 
-**2. Python environment** (one time; rerun the `pip` line after pulling changes):
+No `sudo`? Ask an administrator for the packages, or skip `stockfish` and use
+the no-sudo installer in step 3.
+
+**2. Download the project** (one time). The game lives on the
+`feature/so101-simulation` branch:
+
+```bash
+git clone --branch feature/so101-simulation https://github.com/HAM-ARC-NITW/Ai-Gambit.git
+cd Ai-Gambit
+```
+
+All later commands run inside this `Ai-Gambit` folder.
+
+**3. Create the Python environment** (one time):
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r so101_simulation/requirements.txt
 ```
 
-**3. Play:**
+Only if you skipped `stockfish` in step 1, also run
+`bash engine_stuff/install_stockfish.sh`. It downloads the official Stockfish
+19 into `engine_stuff/bin` (no `sudo`) and checks its SHA-256. The game finds
+either installation automatically.
+
+**4. Check the installation** (optional, about a minute, no windows):
 
 ```bash
-.venv/bin/python so101_simulation/play_game.py                # you play Black
-.venv/bin/python so101_simulation/play_game.py --human white  # you move first
-```
-
-Three windows open: the MuJoCo 3D viewer, `Chess - overhead camera` and
-`Chess - board`. Play in `Chess - board` exactly as described in
-[Full game](#full-game-the-arm-reads-the-board-you-press-the-big-red-button).
-
-**4. Optional checks:**
-
-```bash
-# A scripted game with no windows (about a minute).
 .venv/bin/python so101_simulation/play_game.py --headless --human-moves e7e5 b8c6
-# The automated tests (a few minutes).
-.venv/bin/python -m pytest -q so101_simulation/test_game_loop.py so101_simulation/test_perception.py
 ```
 
-On a machine with no display (for example over SSH), only `--headless` and the
-tests work. Prefix them with `MUJOCO_GL=egl` so MuJoCo renders the camera
-without a window.
+It should end with a line starting `Confirmed FEN:` after the arm and the
+scripted player have each made verified moves.
+
+**5. Play:**
+
+```bash
+.venv/bin/python so101_simulation/play_game.py                # you play Black; the arm moves first
+.venv/bin/python so101_simulation/play_game.py --human white  # you play White and move first
+```
+
+The first start takes about 10 seconds. Three windows open: the MuJoCo 3D
+viewer, `Chess - overhead camera` and `Chess - board`. If one is hidden, check
+the taskbar. You play in **`Chess - board`**, which shows the board from the
+camera with your pieces (Black) in the top two rows:
+
+1. Wait while the arm moves (clicks are ignored). The panel then shows
+   `YOUR MOVE`.
+2. Click one of your pieces. It lifts and green dots show its legal squares.
+   Click another of your pieces to switch, or the same square to put it back.
+3. Click a green dot. The move is made and locked; press **U** to take it back.
+   Captures, castling (the rook follows) and en passant are completed for you.
+   To promote, press **Q**, **R**, **B** or **N** before moving the pawn
+   (queen by default).
+4. Finish your turn: click the red **DONE** button below the board, or press
+   **Space**. The camera reads your move, then the arm replies.
+
+**Esc** quits. **L** reloads the position if the game pauses after a failed arm
+move. To pick up later changes: `git pull`, then rerun the `pip` line from step 3.
+
+**Troubleshooting:**
+
+| Problem | Fix |
+| --- | --- |
+| `Could not load the Qt platform plugin "xcb"` | `sudo apt install libsm6 libice6` |
+| `No module named 'ensurepip'` or `venv` errors in step 3 | `sudo apt install python3-venv`, delete `.venv`, repeat step 3 |
+| `Stockfish is missing` | `sudo apt install stockfish`, or `bash engine_stuff/install_stockfish.sh` |
+| 3D viewer fails with an OpenGL/GLFW error | Update the graphics driver; in a virtual machine enable 3D acceleration |
+| `Observation expired` (very busy or slow computer) | The game already retakes an expired camera reading up to three times. Close other heavy programs and restart the game; if it keeps happening, raise `max_frame_age` in [workspace.json](perception_ws/src/ai_gambit_perception/ai_gambit_perception/workspace.json) |
+| Game paused after an arm move | Press **L** to reload the confirmed position, and report the panel message |
+| No display, for example over SSH | Only step 4 and the tests work; prefix them with `MUJOCO_GL=egl` |
+
+The automated tests take a few minutes:
+`.venv/bin/python -m pytest -q so101_simulation/test_game_loop.py so101_simulation/test_perception.py`.
 
 ## Run the different modes
 

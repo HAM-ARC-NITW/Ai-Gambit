@@ -84,6 +84,32 @@ def test_arm_reaches_d3_from_f1(sim):
     assert game.version == 1
 
 
+def test_expired_observation_is_retaken_not_trusted(sim, monkeypatch):
+    # A busy laptop can process a frame for longer than max_frame_age.
+    board = chess.Board()
+    sim.load_position(board)
+    game = Coordinator(sim.detector, board)
+    game.rack = sim.rack_inventory.copy()
+    real_snapshot, real_move = sim.snapshot, sim.physical_move
+    aged, moves = {"left": 2}, []
+
+    def slow_snapshot(*args, **kwargs):
+        obs = real_snapshot(*args, **kwargs)
+        if aged["left"]:  # The first baseline and the first post-move check.
+            aged["left"] -= 1
+            obs.timestamp -= 10
+        return obs
+
+    monkeypatch.setattr(sim, "snapshot", slow_snapshot)
+    monkeypatch.setattr(sim, "physical_move", lambda *a, **k: moves.append(1) or real_move(*a, **k))
+    play_turn(sim, game, "e2e4")
+    assert game.version == 1 and len(moves) == 1  # The arm moved once.
+    aged["left"] = 99  # An always-expired camera is still refused.
+    with pytest.raises(ValueError, match="expired"):
+        play_turn(sim, game, "e7e5")
+    assert game.version == 1
+
+
 def test_ambiguous_capture_asks_and_then_commits_choice(sim):
     game, hand, started = setup(sim, TWO_CAPTURES)
     hand.perform(game.board, chess.Move.from_uci("d5c4"))

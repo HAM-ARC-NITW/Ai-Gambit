@@ -20,7 +20,7 @@ import mujoco
 import mujoco.viewer
 from perception_sim import Simulation, overlay
 from chess_game import Coordinator, AmbiguousMove, occupancy
-from play_chess import play_turn
+from play_chess import play_turn, checked_snapshot
 from virtual_hand import VirtualHand
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from engine_stuff.stockfish_engine import StockfishEngine
@@ -33,8 +33,7 @@ IDLE_REFRESH = .8  # Seconds without clicks before the camera view is refreshed.
 
 def read_board(sim, game, observer=None):
     """The camera reads the board, which must agree with the confirmed position."""
-    obs = sim.snapshot(on_observation=observer)
-    ok, reason = game.baseline(obs)
+    obs, ok, reason = checked_snapshot(sim, game.baseline, observer)
     if not ok:
         raise ValueError("Board read failed: " + reason)
     return obs
@@ -57,11 +56,16 @@ def press_button(sim, game, hand, started, selection=None, observer=None):
     """The big red button: the camera alone decides what the human played."""
     if hand.held is not None:
         raise ValueError("You are still holding a piece; put it down first")
-    obs = sim.snapshot(on_observation=observer)
-    move, rack, tray = game.read_human_move(obs, selection)
-    ok, reason = game.accept(move, obs, started, rack, tray)
+    read = {}
+
+    def verify(obs):
+        read["move"], read["rack"], read["tray"] = game.read_human_move(obs, selection)
+        return game.accept(read["move"], obs, started, read["rack"], read["tray"])
+
+    obs, ok, reason = checked_snapshot(sim, verify, observer)
     if not ok:
         raise ValueError("Verification failed: " + reason)
+    move, rack, tray = read["move"], read["rack"], read["tray"]
     sim.rack_inventory, sim.tray_inventory = list(rack), list(tray)
     sim.sync_mapping(game.board)
     return move, obs

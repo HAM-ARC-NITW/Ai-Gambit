@@ -20,10 +20,23 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from engine_stuff.stockfish_engine import StockfishEngine
 
 
+def checked_snapshot(sim, check, observer=None, attempts=3):
+    """Snapshot, then check it with check(obs) -> (ok, reason).
+
+    A busy computer can spend longer than max_frame_age processing one frame.
+    That frame is correctly refused as expired; the remedy is a fresh snapshot,
+    not a looser limit. Only the observation is retried, never an action.
+    """
+    for attempt in range(attempts):
+        obs = sim.snapshot(on_observation=observer)
+        ok, reason = check(obs)
+        if ok or "expired" not in reason or attempt == attempts-1:
+            return obs, ok, reason
+
+
 def play_turn(sim, game, text, animate=False, viewer=None, speed=1, observer=None):
     """Shared by the GUI and automated end-to-end game tests."""
-    before = sim.snapshot(on_observation=observer)
-    ok, reason = game.baseline(before)
+    before, ok, reason = checked_snapshot(sim, game.baseline, observer)
     if not ok:
         raise ValueError("Cannot start move: " + reason)
     requested = chess.Move.from_uci(text)
@@ -31,11 +44,15 @@ def play_turn(sim, game, text, animate=False, viewer=None, speed=1, observer=Non
         raise ValueError("Illegal move: " + text)
     started = time.time()
     mapping, rack, tray = sim.physical_move(game.board, requested, animate, viewer, speed,observation=before)
-    observed = sim.snapshot(on_observation=observer)
-    recognized, options = game.interpret(observed, selection=text)
-    if recognized != requested:
-        raise ValueError("Observed move differs from the requested physical action")
-    ok, reason = game.accept(recognized, observed, started, rack, tray)
+    options = []
+
+    def verify(obs):
+        recognized, options[:] = game.interpret(obs, selection=text)
+        if recognized != requested:
+            raise ValueError("Observed move differs from the requested physical action")
+        return game.accept(recognized, obs, started, rack, tray)
+
+    observed, ok, reason = checked_snapshot(sim, verify, observer)
     if not ok:
         raise ValueError("Verification failed; game paused: " + reason)
     sim.mapping, sim.rack_inventory, sim.tray_inventory = mapping, rack, tray

@@ -42,7 +42,9 @@ class StockfishEngine:
         self.time_limit = time_limit
         # Hide the engine's console on Windows; MuJoCo/camera windows stay visible.
         options = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name=="nt" else {}
-        self.engine = chess.engine.SimpleEngine.popen_uci(self.path,timeout=5.,**options)
+        # A first launch right after installing, on a busy laptop, can take
+        # several seconds; this only bounds how long a broken engine can hang.
+        self.engine = chess.engine.SimpleEngine.popen_uci(self.path,timeout=30.,**options)
         try:
             # One thread and a small hash leave resources for rendering/physics.
             self.engine.configure({"Threads":1,"Hash":64,"Skill Level":skill})
